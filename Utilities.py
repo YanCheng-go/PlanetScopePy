@@ -42,7 +42,6 @@ import numpy as np
 import requests
 from requests.auth import HTTPBasicAuth
 import sys
-import zipfile
 import warnings
 warnings.simplefilter('ignore')
 
@@ -65,7 +64,7 @@ class Utilities:
     # Set directories
     default_work_dir = r'C:\Users\ChengY\Desktop'
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
-                           'clear prob': 'clear_prob', 'NDVI': 'NDVI'}
+                           'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
     # API Key
     default_api_key = "9cada8bc134546fe9c1b8bce5b71860f"
     # Specs
@@ -803,24 +802,86 @@ class Utilities:
         :return:
         '''
 
+    def clip_clear_perc(self, shapefile_path, clear_perc_min, file_list=None):
+        '''
+        Clip images to the extent of AOI.shp if only the percentage of clear pixels within the extent of AOI.shp
+        higher than the threshold
+        :param shapefile_path: string, file path of AOI.shp
+        :param cloud_perc_max: float, maximum percent of clear pixels
+        :param file_list: list, a list of udm2 images
+        :return:
+        '''
+
+        print('Start to clip images :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute clip_clear_perc():\nArguments: shapefile_path={} clear_perc_min={} '
+                           'file_list={}\nStart time: {}\n\n'.format(shapefile_path, clear_perc_min,
+                                                                     file_list, time_str))
+        input_dir = self.work_dir + '\\' + self.output_dirs['clip']
+        output_dir = self.work_dir + '\\' + self.output_dirs['clip clear perc']
+
+        pixel_res = self.pixel_res(self.satellite)  # pixel resolution
+        # List merged and clipped udm2 file path
+        if file_list is None:
+            file_list = glob('{}\\{}\\*udm2.tif'.format(ut.work_dir, ut.output_dirs['clip']))
+        else:
+            file_list = [file for file in file_list if 'udm2' in file]
+
+        asset_id_list = []
+        for file in file_list:
+            asset_name = file.split('\\')[-1].split('.')[0]
+            asset_id = asset_name.split('_udm2')[0]
+            # Clip udm2 to the extent of bomas AOI.shp and save in memory
+            vsimem_path = '/vsimem/' + asset_name + '.tif'
+            self.gdal_clip(file, pixel_res, shapefile_path, vsimem_path)
+            raster = gdal.Open(vsimem_path)
+            # Convert the first band (clear) to numpy array
+            clear_band_array = np.array(raster.GetRasterBand(1).ReadAsArray())
+            # Calculate the number of pixels
+            n_all_pixels = clear_band_array.shape[0] * clear_band_array.shape[1]
+            # Calculate the number of clear pixels
+            n_clear_pixels = np.count_nonzero(clear_band_array != 0)
+            # Calculate the percentage of non-clear pixels
+            clear_perc = n_clear_pixels / n_all_pixels
+            raster = None
+            # If the percentage of clear pixels is larger than the threshold, clip and save the associated
+            # analytic_sr imagery to specific folder
+            if clear_perc >= clear_perc_min:
+                asset_id_list.append(asset_id)
+                input_path = '{}\\{}_{}.tif'.format(input_dir, asset_id,
+                                                    ut.asset_suffix(asset_type='analytic_sr'))
+                output_path = '{}\\{}_{}.tif'.format(output_dir, asset_id,
+                                                     ut.asset_suffix(asset_type='analytic_sr'))
+                ut.gdal_clip(input_path, pixel_res, shapefile_path, output_path)
+        records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        print('Finish clipping images:)')
+        print('The outputs have been saved in this directory: ' + output_dir)
+        records_file.write('End time: {}\n\n'.format(time_str))
+        records_file.close()
+
 
 # Testing
 if __name__ == '__main__':
     ut = Utilities()
     ut.start_up()
+    # # Test several data
     # ut.id_list_download = ['20190107_074019_1049', '20190107_074018_1049']
-    # ut.download_assets()
-    # ut.merge()
-    # ut.clip()
-    # ut.band_algebra(output_type='cloud mask')
-
     # date_list = [i.split('_')[0] for i in ut.id_list_download]
     # for date in date_list:
     #     file_list = []
     #     a = glob("{}\\{}*udm2.tif".format(ut.work_dir + ut.output_dirs['merge'], date))
     #     for i in a:
     #         file_list.append(i)
+    # ut.download_assets()
+    # ut.merge()
+    # ut.clip()
+    # ut.band_algebra(output_type='clear prob')
 
+    # Test merge, clip and band_algebra
     # ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
     # ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
-    # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
+    # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir,
+    # ut.output_dirs['clip'])))
+    ut.clip_clear_perc(ut.aoi_shp, 0.1, file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
