@@ -20,10 +20,6 @@ Preparations
 
 To do list   
 ====================================== 
-- record all steps
-# Create a txt file to record:
-# 1. Date
-# 2. Item id of downloaded items
 - Remove clouds
 - Stack NDVI and clear prob
 - Plot time series (merge and cloud)
@@ -44,10 +40,13 @@ import os
 from osgeo import ogr, gdal
 import numpy as np
 import requests
+from requests.auth import HTTPBasicAuth
 import sys
 import zipfile
 import warnings
+
 warnings.simplefilter('ignore')
+
 
 class Utilities:
     '''Commonly used tools for the processing of PlanetScope imagery
@@ -76,7 +75,7 @@ class Utilities:
     default_filter_items = ['date', 'cloud_cover', 'aoi']
     default_item_types = ["PSScene4Band"]
     default_asset_types = ['analytic_sr', 'udm2']
-    default_start_date = '2019-01-01'
+    default_start_date = '2019-01-20'
     default_end_date = '2019-01-31'
     default_cloud_cover = 0.8
     default_aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
@@ -144,19 +143,32 @@ class Utilities:
         self.records_path = None
         self.id_list_download = None
 
-
     @staticmethod
-    def pixel_res(arg):
+    def asset_suffix(asset_type):
         '''
 
-        :param arg:
+        :param asset_type:
+        :return:
+        '''
+
+        switch = {
+            'analytic_sr': 'AnalyticMS_SR',
+            'udm2': 'udm2'
+        }
+        return switch.get(asset_type, 'None')
+
+    @staticmethod
+    def pixel_res(satellite_abbr):
+        '''
+
+        :param satellite_abbr:
         :return:
         '''
         switch = {
             'PS': 3,
             'S2': 30
         }
-        return switch.get(arg, 'None')
+        return switch.get(satellite_abbr, 'None')
 
     @staticmethod
     def create_dir(f):
@@ -179,6 +191,32 @@ class Utilities:
         for i in self.output_dirs.keys():
             self.create_dir(self.work_dir + '\\{}'.format(self.output_dirs[i]))
 
+    def create_track_file(self):
+        '''
+        Create a txt file to track all the execution of code and outputs, including:
+        1. Date
+        2. Item id that does not have required types of asset
+        3. Item id of downloaded items
+        4. Metadata of each downloaded item
+        :return:
+        '''
+
+        records_path = self.work_dir + '\\Execution_Track.txt'
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        if not os.path.exists(records_path):
+            records_file = open(records_path, "w")
+            records_file.write('Execution Track for Utilities.py\n\n'.format(time_str))
+            records_file.write('Execution date and time: {}\n\n'.format(time_str))
+        else:
+            records_file = open(records_path, "a+")
+            records_file.write('Execution date and time: {}\n\n'.format(time_str))
+        records_file.close()
+        self.records_path = records_path
+
+    def start_up(self):
+        self.create_track_file()
+        self.setup_dirs()
+
     def create_filter(self):
         '''
         Set filters
@@ -196,19 +234,77 @@ class Utilities:
             and_filter = filters.and_filter(and_filter, aoi_filter)
         return and_filter
 
-    def download_one(self):
-        response = requests.get(download_url, stream=True)
-        with open('output/' + image_id + '.zip', "wb") as handle:
-            for data in tqdm(response.iter_content()):
-                handle.write(data)
+    def download_one(self, item_id, asset_type, item_type):
+        '''
+        Download individual asset without using Planet client
+        :param item_id:
+        :param asset_type:
+        :param item_type:
+        :return:
+        '''
 
-        # Unzip file
-        ziped_item = zipfile.ZipFile('output/' + image_id + '.zip')
-        ziped_item.extractall('output/' + image_id)
+        output_dir = self.work_dir + '\\' + self.output_dirs['raw']
+        records_file = open(self.records_path, "a+")
 
-    def download_main(self, item_id, asset_type):
+        item_url = 'https://api.planet.com/data/v1/item-types/{}/items/{}/assets'.format(item_type, item_id)
+        # Returns JSON metadata for assets in this ID.
+        # Learn more: planet.com/docs/reference/data-api/items-assets/#asset
+        result = requests.get(item_url, auth=HTTPBasicAuth(self.api_key, ''))
+        # List of asset types available for this particular satellite image
+        asset_type_list = result.json().keys()
+        # print(asset_type_list)
+        if asset_type in asset_type_list:
+            # Parse out useful links
+            links = result.json()[u'{}'.format(asset_type)]['_links']
+            self_link = links['_self']
+            activation_link = links['activate']
+            # Request activation of the 'analytic' asset:
+            activation = requests.get(activation_link, auth=HTTPBasicAuth(self.api_key, ''))
+            # print(activation.response.status_code)
+            asset_activated = False
+            # i = 0
+            while not asset_activated:
+                activation_status_result = requests.get(self_link, auth=HTTPBasicAuth(self.api_key, ''))
+                asset_status = activation_status_result.json()["status"]
+                if asset_status == 'active':
+                    asset_activated = True
+                    # print("Asset is active and ready to download")
+                    # Still activating. Wait and check again.
+                else:
+                    # print("...Still waiting for asset activation...")
+                    # i += 1
+                    # print('You have been waiting for {} minutes'.format(i - 1))
+                    time.sleep(60)
+            # Image can be downloaded by making a GET with your Planet API key, from here:
+            download_url = activation_status_result.json()["location"]
+            # print(download_link)
+            response = requests.get(download_url, stream=True)
+            total_length = response.headers.get('content-length')
+            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_suffix(asset_type)),
+                      "wb") as handle:
+                if total_length is None:
+                    for data in response.iter_content():
+                        handle.write(data)
+                else:
+                    dl = 0
+                    total_length = int(total_length)
+                    for data in response.iter_content(chunk_size=1024):
+                        handle.write(data)
+                        dl += len(data)
+                        done = int(50 * dl / total_length)
+                        sys.stdout.write("\r[%s%s]" % ('=' * done, ' ' * (50 - done)))
+                        sys.stdout.flush()
+            asset_exist = True
+        else:
+            records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
+            asset_exist = False
+        records_file.close()
+        return asset_exist
+
+    def download_client(self, item_id, asset_type, item_type):
         '''
         Activate and download individual asset with specific item id and asset type
+        Using Planet client
         :param item:
         :param asset_type:
         :return: asset_exist, bolean
@@ -217,41 +313,39 @@ class Utilities:
         output_dir = self.work_dir + '\\' + self.output_dirs['raw']
         records_file = open(self.records_path, "a+")
 
-        for item_type in self.item_types:
-            # Get asset and its activation status
-            assets = self.client.get_assets_by_id(item_type, item_id).get()
-            # print(assets.keys())
-            if asset_type in assets.keys():
-                # Activate
-                # activation = self.client.activate(assets[asset_type])
-                # print(activation.response.status_code)
-                asset_activated = False
-                i = 0
-                while not asset_activated:
-                    assets = self.client.get_assets_by_id(item_type, item_id).get()
-                    asset = assets.get(asset_type)
-                    asset_status = asset["status"]
-                    # If asset is already active, we are done
-                    if asset_status == 'active':
-                        asset_activated = True
-                        # print("Asset is active and ready to download")
-                    # Still activating. Wait and check again.
-                    else:
-                        i+=1
-                        print(i)
-                        # print("...Still waiting for asset activation...")
-                        time.sleep(60)
-                # Download
-                callback = api.write_to_file(directory=output_dir)
-                body = self.client.download(assets[asset_type], callback=callback)
-                # body.wait()
-            else:
-                records_file.write("{} {} {}\n".format(item_id, asset_type, item_type))
-                asset_exist =False
-
+        # Get asset and its activation status
+        assets = self.client.get_assets_by_id(item_type, item_id).get()
+        # print(assets.keys())
+        if asset_type in assets.keys():
+            # Activate
+            activation = self.client.activate(assets[asset_type])
+            # print(activation.response.status_code)
+            asset_activated = False
+            # i = 0
+            while not asset_activated:
+                assets = self.client.get_assets_by_id(item_type, item_id).get()
+                asset = assets.get(asset_type)
+                asset_status = asset["status"]
+                # If asset is already active, we are done
+                if asset_status == 'active':
+                    asset_activated = True
+                    # print("Asset is active and ready to download")
+                # Still activating. Wait and check again.
+                else:
+                    # print("...Still waiting for asset activation...")
+                    # i += 1
+                    # print('You have been waiting for {} minutes'.format(i - 1))
+                    time.sleep(60)
+            # Download
+            callback = api.write_to_file(directory=output_dir)
+            body = self.client.download(assets[asset_type], callback=callback)
+            body.wait()
+            asset_exist = True
+        else:
+            records_file.write("{} {} {}\n\n".format(item_id, asset_type, item_type))
+            asset_exist = False
         records_file.close()
-
-        return asset_exist, item_type
+        return asset_exist
 
     def download_clipped(self, item_id):
         '''
@@ -268,10 +362,10 @@ class Utilities:
         clip_payload = {
             'aoi': self.aoi_geom,
             'targets': [{
-                    'item_id': item_id,
-                    'item_type': "PSScene4Band",
-                    'asset_type': 'analytic_sr'
-                }]}
+                'item_id': item_id,
+                'item_type': "PSScene4Band",
+                'asset_type': 'analytic_sr'
+            }]}
         # Request clip of scene (This will take some time to complete)
         request = requests.post('https://api.planet.com/compute/ops/clips/v1', auth=(self.api_key, ''),
                                 json=clip_payload)
@@ -290,7 +384,7 @@ class Utilities:
                 # Download clip
                 response = requests.get(clip_download_url, stream=True)
                 with open(+ item_id + '.zip', "wb") as handle:
-                    for data in tqdm(response.iter_content()):
+                    for data in response.iter_content():
                         handle.write(data)
                 # Unzip file
                 ziped_item = zipfile.ZipFile(clipped_raw_dir + '\\' + item_id + '.zip')
@@ -314,7 +408,7 @@ class Utilities:
         file_list_sr = glob('{}\\*SR.tif'.format(dir))
         id_list_exist_udm2 = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_udm2]
         id_list_exist_sr = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_sr]
-        if id_list_exist_udm2 >= id_list_exist_sr:
+        if len(id_list_exist_udm2) >= len(id_list_exist_sr):
             id_list_exist = id_list_exist_sr
         else:
             id_list_exist = id_list_exist_udm2
@@ -331,25 +425,18 @@ class Utilities:
         '''
 
         print('Start to download assets :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute download_assets():\nArguments: clipped={} output_dir={}\nStart time: {}\n\n'
+                           .format(clipped, output_dir, time_str))
 
         # Download clipped assets or not
         if clipped is None:
             clipped = False
 
-        # Create a txt file to record:
-        # 1. Date
-        # 2. Item id that does not have required types of asset
-        # 3. Item id of downloaded items
-        # 4. Metadata of each downloaded item
-        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_path = self.work_dir + '\\records_{}.txt'.format(time_str)
-        if not os.path.exists(records_path):
-            records_file = open(records_path, "w")
-            records_file.close()
-        self.records_path = records_path
-
         # Create filter
         and_filter = self.create_filter()
+        records_file.write('Filter settings: {}'.format(and_filter))
         # Search items
         req = filters.build_search_request(and_filter, self.item_types)
         res = self.client.quick_search(req)
@@ -369,19 +456,29 @@ class Utilities:
         for item_id in tqdm(self.id_list_download, total=len(self.id_list_download), unit="item",
                             desc='Downloading assets'):
             if not clipped:
-                for asset_type in self.asset_types:
-                    asset_exist, item_type = self.download_main(item_id, asset_type)
-                    if asset_exist is True:
-                        metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
-                        records_file = open(self.records_path, "a+")
-                        records_file.write('Metadata for {}_{}_{}\n{}'.format(item_id, asset_type, item_type, metadata))
-                        records_file.close()
+                for item_type in self.item_types:
+                    for asset_type in self.asset_types:
+                        asset_exist = self.download_one(item_id, asset_type, item_type)
+                        if asset_exist is True:
+                            metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
+                            records_file = open(self.records_path, "a+")
+                            records_file.write('File Exists: {}_3B_{} {}\n\n'.format(item_id,
+                                                                                 self.asset_suffix(asset_type),
+                                                                                 item_type))
+                            records_file.write('Metadata for {}_3B_{} {}\n{}\n\n'.format(item_id,
+                                                                                       self.asset_suffix(asset_type),
+                                                                                       item_type, metadata))
+                            records_file.close()
             else:
                 self.download_clipped(item_id)
 
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish downloading assets :)')
         print('The raw images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
         print('The information of missing assets has be saved in this file: ' + self.records_path)
+        records_file = open(self.records_path, "a+")
+        records_file.write('End time: {}'.format(time_str))
+        records_file.close()
 
     def gdal_translate(self, input_path, output_path):
         '''
@@ -420,12 +517,17 @@ class Utilities:
 
     def udm2_setnull(self, file_list=None):
         '''
-
+        Set the value of background pixels as no data
         :param file_list:
         :return:
         '''
 
         print('Start to process udm2 data :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute udm2_setnull():\nArguments: file_list={}\nStart time: {}\n\n'
+                           .format(time_str, file_list))
+
         input_dir = self.work_dir + '\\' + self.output_dirs['raw']
         output_dir = input_dir
 
@@ -440,8 +542,10 @@ class Utilities:
             output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
             self.gdal_udm2_setnull(input_path, output_path)
 
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish processing udm2 data :)')
         print('The outputs have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
+        records_file.write('End time: {}\n\n'.format(time_str))
 
     def gdal_merge(self, input_path, output_path, data_type):
         '''
@@ -467,6 +571,9 @@ class Utilities:
         self.udm2_setnull()
 
         print('Start to merge images collected in the same day on the same orbit :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute merge():\nArguments: file_list={}\nStart time: {}\n\n'.format(time_str, file_list))
         input_dir = self.work_dir + '\\' + self.output_dirs['raw']
         output_dir = self.work_dir + '\\' + self.output_dirs['merge']
 
@@ -491,8 +598,12 @@ class Utilities:
                 self.gdal_merge(input_path_sr, output_path_sr, 'UInt16')
                 self.gdal_merge(input_path_udm2, output_path_udm2, 'Byte')
 
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
-        print('The merged images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['merge'])
+        print('The merged images have been saved in this directory: ' +
+              self.work_dir + '\\' + self.output_dirs['merge'])
+        records_file.write('End time: {}\n\n'.format(time_str))
+        records_file.close()
 
     @staticmethod
     def gdal_clip(input_path, pixel_res, shapefile_path, cut_line_name, output_path):
@@ -540,6 +651,9 @@ class Utilities:
         '''
 
         print('Start GDAL clip :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(time_str, file_list))
         input_dir = self.work_dir + '\\' + self.output_dirs['merge']
         output_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
@@ -560,8 +674,11 @@ class Utilities:
             output_path = output_dir + '\\' + output_name
             self.gdal_clip(input_path, pixel_res, shapefile_path, cut_line_name, output_path)
 
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
         print('The clipped images have been saved in this directory: ' + output_dir)
+        records_file.write('End time: {}\n\n'.format(time_str))
+        records_file.close()
 
     def gdal_calc_ndvi(self, input_path, output_path):
         '''
@@ -596,6 +713,10 @@ class Utilities:
         '''
 
         print('Start GDAL band calculation :)')
+        records_file = open(self.records_path, "a+")
+        time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        records_file.write('Execute merge():\nArguments: output_type={} file_list={}\nStart time: {}\n\n'
+                           .format(time_str, output_type, file_list))
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         if output_type == 'clear prob':
@@ -623,8 +744,11 @@ class Utilities:
             for sr_path in file_list:
                 ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1]
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
+            time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + ndvi_dir)
+            records_file.write('End time: {}\n\n'.format(time_str))
+            records_file.close()
 
     def mask_cloud(self):
         '''
@@ -654,12 +778,12 @@ class Utilities:
 # Testing
 if __name__ == '__main__':
     ut = Utilities()
-    ut.setup_dirs()
+    ut.start_up()
     # ut.id_list_download = ['20190107_074019_1049', '20190107_074018_1049']
     ut.download_assets()
     ut.merge()
     ut.clip()
-    ut.band_algebra()
+    ut.band_algebra(output_type='cloud mask')
     # date_list = [i.split('_')[0] for i in ut.id_list_download]
     # for date in date_list:
     #     file_list = []
@@ -668,5 +792,3 @@ if __name__ == '__main__':
     #         file_list.append(i)
     # ut.clip(file_list=file_list)
     # ut.band_algebra(output_type='clear prob', file_list=file_list)
-
-
