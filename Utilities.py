@@ -21,9 +21,11 @@ Preparations
 To do list   
 ====================================== 
 1. Remove clouds
-2. Stack NDVI and cloud mask
+2. Stack NDVI and clear prob
 3. Plot time series (merge and cloud)
 4. Map or apply
+5. satellite id... split
+6. gdal warp
 '''
 
 from planet import api
@@ -60,7 +62,7 @@ class Utilities:
     # Set directories
     default_work_dir = r'C:\Users\ChengY\Desktop'
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
-                           'cloud mask': 'cloud_mask', 'NDVI': 'NDVI'}
+                           'clear prob': 'clear_prob', 'NDVI': 'NDVI'}
     # API Key
     default_api_key = "9cada8bc134546fe9c1b8bce5b71860f"
     # Specs
@@ -325,7 +327,54 @@ class Utilities:
         gdal_translate_process = gdal_translate_str.format(self.gdal_translate_path, input_path, output_path)
         os.system(gdal_translate_process)
 
-    def gdal_merge(self, input_path, output_path):
+    def gdal_udm2_setnull(self, input_path, output_path):
+        '''
+        Set the value of background pixels as no data
+        :param input_path:
+        :param output_path:
+        :return:
+        '''
+
+        temp_output_path = self.work_dir + '\\TempFile.tif'
+        gdal_calc_str = 'python {0} --calc "A+B+C+D+E+F+G" --co "COMPRESS=LZW" --format GTiff ' \
+                        '--type Byte -A {1} --A_band 1 -B {2} --B_band 2 -C {3} --C_band 3 -D {4} --D_band 4 ' \
+                        '-E {5} --E_band 5 -F {6} --F_band 6 -G {7} --G_band 7 --outfile {8} --overwrite'
+        gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, input_path, input_path, input_path,
+                                                 input_path, input_path, input_path, temp_output_path)
+        os.system(gdal_calc_process)
+
+        gdal_calc_str = 'python {0} --calc "A*(B>0)" --co "COMPRESS=LZW" --format GTiff ' \
+                        '--type Byte --NoDataValue 0 -A {1} -B {2} --outfile {3} --allBands A --overwrite'
+        gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, temp_output_path, output_path)
+        os.system(gdal_calc_process)
+        os.remove(temp_output_path)
+
+    def udm2_setnull(self, file_list=None):
+        '''
+
+        :param file_list:
+        :return:
+        '''
+
+        print('Start to process udm2 data :)')
+        input_dir = self.work_dir + '\\' + self.output_dirs['raw']
+        output_dir = input_dir
+
+        if file_list is None:
+            file_list = []
+            for i in self.id_list:
+                a = glob("{}\\{}*udm2.tif".format(input_dir, i))
+                for j in a:
+                    file_list.append(j)
+
+        for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
+            output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
+            self.gdal_udm2_setnull(input_path, output_path)
+
+        print('Finish processing udm2 data :)')
+        print('The outputs have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
+
+    def gdal_merge(self, input_path, output_path, data_type):
         '''
         GDAL merge function
         https://gdal.org/programs/gdal_merge.html
@@ -335,8 +384,8 @@ class Utilities:
         :return:
         '''
 
-        gdal_merge_str = 'python {0} -a_nodata 0 -o {1} {2}'
-        gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path)
+        gdal_merge_str = 'python {0} -a_nodata 0 -o {1} {2} -ot {3}'
+        gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
     def merge(self, file_list=None):
@@ -345,6 +394,8 @@ class Utilities:
         :param file_list:
         :return:
         '''
+
+        self.udm2_setnull()
 
         print('Start to merge images collected in the same day on the same orbit :)')
         input_dir = self.work_dir + '\\' + self.output_dirs['raw']
@@ -361,15 +412,15 @@ class Utilities:
 
         for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
             file_list_sr = glob("{}\\{}*SR.tif".format(input_dir, date))
-            file_list_udm2 = glob("{}\\{}*udm2.tif".format(input_dir, date))
+            file_list_udm2 = glob("{}\\{}*udm2_setnull.tif".format(input_dir, date))
             input_path_sr = ' '.join(str(i) for i in file_list_sr)
             input_path_udm2 = ' '.join(str(i) for i in file_list_udm2)
-            satellite_id_list = list(set([x.split('\\')[-1].split('_')[-3] for x in file_list_udm2]))
+            satellite_id_list = list(set([x.split('\\')[-1].split('_3B_')[0].split('_')[-1] for x in file_list_udm2]))
             for satellite_id in satellite_id_list:
                 output_path_sr = output_dir + '\\' + date + '_' + satellite_id + '_AnalyticMS_SR.tif'
                 output_path_udm2 = output_dir + '\\' + date + '_' + satellite_id + '_udm2.tif'
-                self.gdal_merge(input_path_sr, output_path_sr)
-                self.gdal_merge(input_path_udm2, output_path_udm2)
+                self.gdal_merge(input_path_sr, output_path_sr, 'UInt16')
+                self.gdal_merge(input_path_udm2, output_path_udm2, 'Byte')
 
         print('Finish merging images :)')
         print('The merged images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['merge'])
@@ -397,6 +448,7 @@ class Utilities:
         minX, maxX, minY, maxY = geom.GetEnvelope()  # Get bounding box of the shapefile feature
         # Create raster
         OutTile = gdal.Warp(output_path, raster, format='GTiff',
+                            outputType=gdal.GDT_Byte,
                             outputBounds=[minX, minY, maxX, maxY],
                             xRes=pixel_res, yRes=pixel_res,
                             targetAlignedPixels=True,
@@ -442,78 +494,6 @@ class Utilities:
         print('Finish clipping images :)')
         print('The clipped images have been saved in this directory: ' + output_dir)
 
-    # def gdal_clip(self, file_list=None):
-    #     '''
-    #     Clip imagery to the extent of AOI
-    #     :return:
-    #     '''
-    #
-    #     print('Start GDAL clip :)')
-    #     output_dir = self.work_dir + '\\' + self.output_dirs['clip']
-    #     input_dir = self.work_dir + '\\' + self.output_dirs['raw']
-    #
-    #     Shapefile = self.aoi_shp
-    #     cutlineLayer = Shapefile.split('\\')[-1].split('.')[0]
-    #     RasterFormat = 'GTiff'
-    #     VectorFormat = 'ESRI Shapefile'
-    #     PixelRes = self.pixel_res(self.satellite)
-    #
-    #     if file_list is None:
-    #         file_list = []
-    #         for i in self.id_list:
-    #             a = glob("{}\\{}*.tif".format(input_dir, i))
-    #             for j in a:
-    #                 file_list.append(j)
-    #         # print(file_list)
-    #
-    #     for i in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
-    #         file_name = i.split('\\')[-1]
-    #         InputImage = i
-    #         # Open datasets
-    #         Raster = gdal.Open(InputImage, gdal.GA_ReadOnly)
-    #         # Projection = Raster.GetProjectionRef()
-    #         # print(Projection)
-    #         VectorDriver = ogr.GetDriverByName(VectorFormat)
-    #         VectorDataset = VectorDriver.Open(Shapefile, 0)  # 0=Read-only, 1=Read-Write
-    #         layer = VectorDataset.GetLayer()
-    #         feature = layer.GetFeature(0)
-    #         geom = feature.GetGeometryRef()
-    #         minX, maxX, minY, maxY = geom.GetEnvelope()  # Get bounding box of the shapefile feature
-    #         # Create raster
-    #         OutTileName = output_dir + '\\' + file_name
-    #         OutTile = gdal.Warp(OutTileName, Raster, format=RasterFormat,
-    #                             outputBounds=[minX, minY, maxX, maxY],
-    #                             xRes=PixelRes, yRes=PixelRes,
-    #                             targetAlignedPixels=True,
-    #                             # dstSRS='epsg:{}'.format(str(self.proj_code)),
-    #                             resampleAlg=gdal.GRA_NearestNeighbour,
-    #                             cutlineDSName=Shapefile,
-    #                             cutlineLayer=cutlineLayer,
-    #                             cropToCutline=True,
-    #                             dstNodata=-9999,
-    #                             options=['COMPRESS=LZW'])
-    #         OutTile = None  # Close dataset
-    #
-    #     # Close datasets
-    #     Raster = None
-    #     VectorDataset.Destroy()
-    #     print('Finish GDAL Clip :)')
-    #     print('The outputs have been saved in this directory: ' + output_dir)
-
-    def gdal_calc_mask(self, input_path, output_path):
-        '''
-        Sum up band 1 to band 7
-        :param input_path:
-        :param output_path:
-        :return:
-        '''
-        gdal_calc_str = 'python {0} --calc "A+B+C+D+E+F+G" --co="COMPRESS=LZW" --format GTiff ' \
-                        '--type Int16 -A {1} --A_band 1 -B {2} --B_band 2 -C {3} --C_band 3 -D {4} --D_band 4 ' \
-                        '-E {5} --E_band 5 -F {6} --F_band 6 -G {7} --G_band 7 --outfile {3} --overwrite'
-        gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, input_path, input_path, input_path,
-                                                 input_path, input_path, input_path, output_path)
-        os.system(gdal_calc_process)
-
     def gdal_calc_ndvi(self, input_path, output_path):
         '''
         Band algebra for NDVI
@@ -521,26 +501,26 @@ class Utilities:
         :param output_path:
         :return:
         '''
-        gdal_calc_str = 'python {0} --calc "(A-B)/(A+B)*10000" --co="COMPRESS=LZW" --format GTiff ' \
-                        '--type Int16 -A {1} --A_band 4 -B {2} --B_band 3 --outfile {3} --overwrite'
+        gdal_calc_str = 'python {0} --calc "(A-B)/(A+B)*10000" --co "COMPRESS=LZW" --format GTiff ' \
+                        '--type UInt16 -A {1} --A_band 4 -B {2} --B_band 3 --outfile {3} --overwrite'
         gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, input_path, output_path)
         os.system(gdal_calc_process)
 
-    def gdal_calc_cloud_mask(self, input_path, output_path):
+    def gdal_calc_clear_prob(self, input_path, output_path):
         '''
-        Band algebra for cloud mask
+        Band algebra for clear probability
         :param input_path:
         :param output_path:
         :return:
         '''
-        gdal_calc_str = 'python {0} --calc "A*B" --co="COMPRESS=LZW" --format GTiff --type Int16 -A {1} ' \
+        gdal_calc_str = 'python {0} --calc "A*B" --co "COMPRESS=LZW" --format GTiff --type UInt16 -A {1} ' \
                         '--A_band 1 -B {2} --B_band 7 --outfile {3} --overwrite'
         gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, input_path, output_path)
         os.system(gdal_calc_process)
 
     def band_algebra(self, output_type, file_list=None):
         '''
-        Band algebra for cloud mask or NDVI
+        Band algebra for clear probablity or NDVI
         :param output_type:
         :param file_list:
         :return:
@@ -549,8 +529,8 @@ class Utilities:
         print('Start GDAL band calculation :)')
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
-        if output_type == 'cloud mask':
-            cloud_mask_dir = self.work_dir + '\\' + self.output_dirs['cloud mask']
+        if output_type == 'clear prob':
+            clear_prob_dir = self.work_dir + '\\' + self.output_dirs['clear prob']
             if file_list is None:
                 file_list = []
                 for i in self.id_list:
@@ -558,10 +538,10 @@ class Utilities:
                     for j in a:
                         file_list.append(j)
             for udm2_path in file_list:
-                cloud_mask_path = cloud_mask_dir + '\\' + udm2_path.split('\\')[-1]
-                self.gdal_calc_cloud_mask(input_path=udm2_path, output_path=cloud_mask_path)
+                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1]
+                self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
             print('Finish GDAL Calculation :)')
-            print('The outputs have been saved in this directory: ' + cloud_mask_dir)
+            print('The outputs have been saved in this directory: ' + clear_prob_dir)
 
         if output_type == 'NDVI':
             ndvi_dir = self.work_dir + '\\' + self.output_dirs['NDVI']
@@ -577,71 +557,47 @@ class Utilities:
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + ndvi_dir)
 
+    def mask_cloud(self):
+        '''
+        Remove cloudy pixels
+        :return:
+        '''
 
-    # def gdal_cal(self, type_, file_list=None):
-    #     '''
-    #     Band algebra for cloud mask and NDVI
-    #     :param type_:
-    #     :param file_list:
-    #     :return:
-    #     '''
-    #
-    #     print('Start GDAL band calculation :)')
-    #     input_dir = self.work_dir + '\\' + self.output_dirs['clip']
-    #
-    #     if type_ == 'cloud mask':
-    #         cloud_mask_dir = self.work_dir + '\\' + self.output_dirs['cloud mask']
-    #         if file_list is None:
-    #             file_list = []
-    #             for i in self.id_list:
-    #                 a = glob("{}\\{}*udm2.tif".format(input_dir, i))
-    #                 for j in a:
-    #                     file_list.append(j)
-    #         for udm2_path in file_list:
-    #             print(udm2_path)
-    #             cloud_mask_path = cloud_mask_dir + '\\' + udm2_path.split('\\')[-1]
-    #             gdal_calc_str = 'python {0} --calc "A*B" --co="COMPRESS=LZW" --format GTiff --type Int16 -A {1} ' \
-    #                             '--A_band 1 -B {2} --B_band 7 --outfile {3} --overwrite'
-    #             gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, udm2_path, udm2_path, cloud_mask_path)
-    #             os.system(gdal_calc_process)
-    #         print('Finish GDAL Calculation :)')
-    #         print('The outputs have been saved in this directory: ' + cloud_mask_dir)
-    #
-    #     if type_ == 'NDVI':
-    #         ndvi_dir = self.work_dir + '\\' + self.output_dirs['NDVI']
-    #         if file_list is None:
-    #             file_list = []
-    #             for i in self.id_list:
-    #                 a = glob("{}\\{}SR*.tif".format(input_dir, i))
-    #                 for j in a:
-    #                     file_list.append(j)
-    #         for sr_path in file_list:
-    #             ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1]
-    #             gdal_calc_str = 'python {0} --calc "(A-B)/(A+B)*10000" --co="COMPRESS=LZW" --format GTiff ' \
-    #                             '--type Int16 -A {1} --A_band 4 -B {2} --B_band 3 --outfile {3} --overwrite'
-    #             gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, sr_path, sr_path, ndvi_path)
-    #             os.system(gdal_calc_process)
-    #         print('Finish GDAL Calculation :)')
-    #         print('The outputs have been saved in this directory: ' + ndvi_dir)
+    def stack_bands(self):
+        '''
+
+        :return:
+        '''
+
+    def plot_time_series(self):
+        '''
+
+        :return:
+        '''
+
+    def plot_thrumbnail(self):
+        '''
+
+        :return:
+        '''
 
 
 # Testing
 if __name__ == '__main__':
     ut = Utilities()
-    # ut.id_list = ['20190107_074019_1049', '20190107_074019_1048']
-    # ut.setup_dirs()
-    # ut.download_assets()
-    # ut.merge()
+    ut.setup_dirs()
+    # ut.id_list = ['20190107_074019_1049', '20190107_074018_1049']
+    ut.download_assets()
+    ut.merge()
+    ut.clip()
+    ut.band_algebra()
     # date_list = [i.split('_')[0] for i in ut.id_list]
     # for date in date_list:
     #     file_list = []
-    #     a = glob("{}\\{}*.tif".format(ut.work_dir + '\\merge', date))
+    #     a = glob("{}\\{}*udm2.tif".format(ut.work_dir + '\\merge', date))
     #     for i in a:
     #         file_list.append(i)
-    # # ut.clip(file_list=file_list)
-    # ut.band_algebra(output_type='cloud mask', file_list=file_list)
-
-    ut.gdal_calc_mask(input_path='C:\\Users\\ChengY\\Desktop\\raw\\20190107_074016_1049_3B_udm2.tif',
-                      output_path=r'C:\Users\ChengY\Desktop\test_4.tif')
+    # ut.clip(file_list=file_list)
+    # ut.band_algebra(output_type='clear prob', file_list=file_list)
 
 
