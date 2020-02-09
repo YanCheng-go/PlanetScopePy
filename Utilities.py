@@ -20,12 +20,16 @@ Preparations
 
 To do list   
 ====================================== 
-1. Remove clouds
-2. Stack NDVI and clear prob
-3. Plot time series (merge and cloud)
-4. Map or apply
-5. satellite id... split
-6. gdal warp
+- record all steps
+# Create a txt file to record:
+# 1. Date
+# 2. Item id of downloaded items
+- Remove clouds
+- Stack NDVI and clear prob
+- Plot time series (merge and cloud)
+- Map or apply
+- satellite id... split
+- gdal warp
 '''
 
 from planet import api
@@ -73,7 +77,7 @@ class Utilities:
     default_item_types = ["PSScene4Band"]
     default_asset_types = ['analytic_sr', 'udm2']
     default_start_date = '2019-01-01'
-    default_end_date = '2019-01-10'
+    default_end_date = '2019-01-31'
     default_cloud_cover = 0.8
     default_aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
 
@@ -138,7 +142,7 @@ class Utilities:
         # print(self.aoi_geom)
         # Create empty variables
         self.records_path = None
-        self.id_list = None
+        self.id_list_download = None
 
 
     @staticmethod
@@ -192,44 +196,64 @@ class Utilities:
             and_filter = filters.and_filter(and_filter, aoi_filter)
         return and_filter
 
-    def download_main(self, item, asset_type):
+    def download_one(self):
+        response = requests.get(download_url, stream=True)
+        with open('output/' + image_id + '.zip', "wb") as handle:
+            for data in tqdm(response.iter_content()):
+                handle.write(data)
+
+        # Unzip file
+        ziped_item = zipfile.ZipFile('output/' + image_id + '.zip')
+        ziped_item.extractall('output/' + image_id)
+
+    def download_main(self, item_id, asset_type):
         '''
         Activate and download individual asset with specific item id and asset type
         :param item:
         :param asset_type:
-        :return:
+        :return: asset_exist, bolean
         '''
 
         output_dir = self.work_dir + '\\' + self.output_dirs['raw']
         records_file = open(self.records_path, "a+")
 
-        # Get asset and its activation status
-        assets = self.client.get_assets(item).get()
-        # print(assets.keys())
-        activation = self.client.activate(assets[asset_type])
-        print(activation.response.status_code)
-        if asset_type in assets.keys():
-            asset_activated = False
-            while not asset_activated:
-                asset = assets.get(asset_type)
-                asset_status = asset["status"]
-                # If asset is already active, we are done
-                if asset_status == 'active':
-                    asset_activated = True
-                    print("Asset is active and ready to download")
-                    callback = api.write_to_file(directory=output_dir)
-                    body = self.client.download(assets[asset_type], callback=callback)
-                    body.wait()
-                # Still activating. Wait and check again.
-                else:
-                    print("...Still waiting for asset activation...")
-                    time.sleep(10)
-        else:
-            records_file.write("{} {}\n".format(item['id'], asset_type))
+        for item_type in self.item_types:
+            # Get asset and its activation status
+            assets = self.client.get_assets_by_id(item_type, item_id).get()
+            # print(assets.keys())
+            if asset_type in assets.keys():
+                # Activate
+                # activation = self.client.activate(assets[asset_type])
+                # print(activation.response.status_code)
+                asset_activated = False
+                i = 0
+                while not asset_activated:
+                    assets = self.client.get_assets_by_id(item_type, item_id).get()
+                    asset = assets.get(asset_type)
+                    asset_status = asset["status"]
+                    # If asset is already active, we are done
+                    if asset_status == 'active':
+                        asset_activated = True
+                        # print("Asset is active and ready to download")
+                    # Still activating. Wait and check again.
+                    else:
+                        i+=1
+                        print(i)
+                        # print("...Still waiting for asset activation...")
+                        time.sleep(60)
+                # Download
+                callback = api.write_to_file(directory=output_dir)
+                body = self.client.download(assets[asset_type], callback=callback)
+                # body.wait()
+            else:
+                records_file.write("{} {} {}\n".format(item_id, asset_type, item_type))
+                asset_exist =False
 
         records_file.close()
 
-    def download_clipped(self, item):
+        return asset_exist, item_type
+
+    def download_clipped(self, item_id):
         '''
         Activate and download clipped assets
         :param item:
@@ -244,7 +268,7 @@ class Utilities:
         clip_payload = {
             'aoi': self.aoi_geom,
             'targets': [{
-                    'item_id': item['id'],
+                    'item_id': item_id,
                     'item_type': "PSScene4Band",
                     'asset_type': 'analytic_sr'
                 }]}
@@ -265,31 +289,58 @@ class Utilities:
                 print("Clip of scene succeeded and is ready to download")
                 # Download clip
                 response = requests.get(clip_download_url, stream=True)
-                with open(+ item['id'] + '.zip', "wb") as handle:
+                with open(+ item_id + '.zip', "wb") as handle:
                     for data in tqdm(response.iter_content()):
                         handle.write(data)
                 # Unzip file
-                ziped_item = zipfile.ZipFile(clipped_raw_dir + '\\' + item['id'] + '.zip')
-                ziped_item.extractall(clipped_raw_dir + '\\' + item['id'])
+                ziped_item = zipfile.ZipFile(clipped_raw_dir + '\\' + item_id + '.zip')
+                ziped_item.extractall(clipped_raw_dir + '\\' + item_id)
                 # Delete zip file
-                os.remove(clipped_raw_dir + '\\' + item['id'] + '.zip')
+                os.remove(clipped_raw_dir + '\\' + item_id + '.zip')
             else:
                 # Still activating. Wait 1 second and check again.
                 print("...Still waiting for clipping to complete...")
                 time.sleep(1)
 
-    def download_assets(self, clipped=None):
+    @staticmethod
+    def retrieve_exist_files(dir):
         '''
-        Download all assets
-        :param clipped: Boolean, True means downloading clipped assests, otherwise downloading raw imagery
+        Retrieve item id of existing assests in a folder
+        :param dir: string, the path of a folder contains downloaded assests
+        :return: id_list_exist, list, id list of existing items in the folder
+        '''
+
+        file_list_udm2 = glob('{}\\*udm2.tif'.format(dir))
+        file_list_sr = glob('{}\\*SR.tif'.format(dir))
+        id_list_exist_udm2 = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_udm2]
+        id_list_exist_sr = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_sr]
+        if id_list_exist_udm2 >= id_list_exist_sr:
+            id_list_exist = id_list_exist_sr
+        else:
+            id_list_exist = id_list_exist_udm2
+
+        return id_list_exist
+
+    def download_assets(self, clipped=None, output_dir=None):
+        '''
+        Download all required assets
+        :param clipped: boolean, True means downloading clipped assests, otherwise downloading raw imagery
+        :param output_dir: string, the directory for saving downloaded assets. In case you have downloaded some assets
+        before using this script, this argument can avoid downloading the same assets again.
         :return:
         '''
 
         print('Start to download assets :)')
 
+        # Download clipped assets or not
         if clipped is None:
             clipped = False
 
+        # Create a txt file to record:
+        # 1. Date
+        # 2. Item id that does not have required types of asset
+        # 3. Item id of downloaded items
+        # 4. Metadata of each downloaded item
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         records_path = self.work_dir + '\\records_{}.txt'.format(time_str)
         if not os.path.exists(records_path):
@@ -297,18 +348,36 @@ class Utilities:
             records_file.close()
         self.records_path = records_path
 
+        # Create filter
         and_filter = self.create_filter()
+        # Search items
         req = filters.build_search_request(and_filter, self.item_types)
         res = self.client.quick_search(req)
-        self.id_list = [i['id'] for i in res.items_iter(250)]
-        # print(self.id_list)
-        for item in tqdm(res.items_iter(250), total=len(self.id_list), unit="item", desc='Downloading assets'):
-            # print(item['id'], item['properties']['item_type'])
+        # List id of all items in the search result
+        id_list_search = [i['id'] for i in res.items_iter(250)]
+        # Retrieve id of existing assets in the folder used to save all downloaded assets
+        if output_dir is None:
+            output_dir = self.work_dir + '\\' + self.output_dirs['raw']
+            id_list_exist = self.retrieve_exist_files(output_dir)
+        else:
+            id_list_exist = self.retrieve_exist_files(output_dir)
+        # List id of all items to be downloaded
+        self.id_list_download = [i for i in id_list_search if i not in id_list_exist]
+        # print(self.id_list_download)
+
+        # Download (clipped) assets based on their item id
+        for item_id in tqdm(self.id_list_download, total=len(self.id_list_download), unit="item",
+                            desc='Downloading assets'):
             if not clipped:
                 for asset_type in self.asset_types:
-                    self.download_main(item, asset_type)
+                    asset_exist, item_type = self.download_main(item_id, asset_type)
+                    if asset_exist is True:
+                        metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
+                        records_file = open(self.records_path, "a+")
+                        records_file.write('Metadata for {}_{}_{}\n{}'.format(item_id, asset_type, item_type, metadata))
+                        records_file.close()
             else:
-                self.download_clipped(item)
+                self.download_clipped(item_id)
 
         print('Finish downloading assets :)')
         print('The raw images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
@@ -362,7 +431,7 @@ class Utilities:
 
         if file_list is None:
             file_list = []
-            for i in self.id_list:
+            for i in self.id_list_download:
                 a = glob("{}\\{}*udm2.tif".format(input_dir, i))
                 for j in a:
                     file_list.append(j)
@@ -403,7 +472,7 @@ class Utilities:
 
         if file_list is None:
             file_list = []
-            for i in self.id_list:
+            for i in self.id_list_download:
                 a = glob("{}\\{}*.tif".format(input_dir, i))
                 for j in a:
                     file_list.append(j)
@@ -480,7 +549,7 @@ class Utilities:
 
         if file_list is None:
             file_list = []
-            for i in self.id_list:
+            for i in self.id_list_download:
                 a = glob("{}\\{}*.tif".format(input_dir, i))
                 for j in a:
                     file_list.append(j)
@@ -533,7 +602,7 @@ class Utilities:
             clear_prob_dir = self.work_dir + '\\' + self.output_dirs['clear prob']
             if file_list is None:
                 file_list = []
-                for i in self.id_list:
+                for i in self.id_list_download:
                     a = glob("{}\\{}*udm2.tif".format(input_dir, i))
                     for j in a:
                         file_list.append(j)
@@ -547,7 +616,7 @@ class Utilities:
             ndvi_dir = self.work_dir + '\\' + self.output_dirs['NDVI']
             if file_list is None:
                 file_list = []
-                for i in self.id_list:
+                for i in self.id_list_download:
                     a = glob("{}\\{}*SR.tif".format(input_dir, i))
                     for j in a:
                         file_list.append(j)
@@ -586,12 +655,12 @@ class Utilities:
 if __name__ == '__main__':
     ut = Utilities()
     ut.setup_dirs()
-    # ut.id_list = ['20190107_074019_1049', '20190107_074018_1049']
+    # ut.id_list_download = ['20190107_074019_1049', '20190107_074018_1049']
     ut.download_assets()
     ut.merge()
     ut.clip()
     ut.band_algebra()
-    # date_list = [i.split('_')[0] for i in ut.id_list]
+    # date_list = [i.split('_')[0] for i in ut.id_list_download]
     # for date in date_list:
     #     file_list = []
     #     a = glob("{}\\{}*udm2.tif".format(ut.work_dir + '\\merge', date))
