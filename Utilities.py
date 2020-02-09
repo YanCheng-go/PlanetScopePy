@@ -44,12 +44,12 @@ from requests.auth import HTTPBasicAuth
 import sys
 import zipfile
 import warnings
-
 warnings.simplefilter('ignore')
 
 
 class Utilities:
-    '''Commonly used tools for the processing of PlanetScope imagery
+    '''
+    Commonly used tools for the processing and raster analytics of PlanetScope imagery
     :param:
     '''
 
@@ -89,22 +89,23 @@ class Utilities:
                  cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp):
         '''
 
-        :param gdal_scripts_path:
-        :param gdal_data_path:
-        :param gdal_calc_path:
-        :param gdal_merge_path:
-        :param work_dir:
-        :param output_dirs:
-        :param satellite:
-        :param proj_code:
-        :param api_key:
-        :param filter_items:
-        :param item_types:
-        :param asset_types:
-        :param start_date:
-        :param end_date:
-        :param cloud_cover:
-        :param aoi_shp:
+        :param gdal_scripts_path: string
+        :param gdal_data_path: string
+        :param gdal_calc_path: string
+        :param gdal_merge_path: string
+        :param gdal_translate_path: string
+        :param work_dir: string
+        :param output_dirs: dictionary, the name of folder for storing different outputs
+        :param satellite: string, abbreviation of satellite name, PS - PLanetScope, S2 - Sentinel-2
+        :param proj_code: int, the EPSG code of projection systtem
+        :param api_key: string
+        :param filter_items: list, a list of filter item names
+        :param item_types: list, a list of item type, more info: https://developers.planet.com/docs/data/items-assets/
+        :param asset_types: list, a list of asset type, more info: https://developers.planet.com/docs/data/psscene4band/
+        :param start_date: string, start date with a format of 'YYYY-MM-DD'
+        :param end_date: string, end date with a format of 'YYYY-MM-DD'
+        :param cloud_cover: float, maximum cloud cover
+        :param aoi_shp: string, file path of AOI.shp, better to be projected one
         '''
 
         self.gdal_scripts_path = gdal_scripts_path
@@ -127,28 +128,26 @@ class Utilities:
                                  day=int(end_date.split('-')[2]))
         self.cloud_cover = cloud_cover
         self.aoi_shp = aoi_shp
-        # Convert AOI shapefile to json format that is required for retrieve imagery
-        # for specific location using Planet API
+        # Convert AOI shapefile to json format that is required for retrieve imagery for specific location
+        # using Planet API
         shp = gpd.read_file(self.aoi_shp)
         if shp.crs != {'init': 'epsg:{}'.format(str(self.proj_code))}:
             shp = shp.to_crs({'init': 'epsg:{}'.format(str(self.proj_code))})
-            # save to file
         else:
             shp2 = shp.to_crs({'init': 'epsg:4326'})
-        coors = np.array(dict(json.loads(shp2['geometry'].to_json()))['features'][0]['geometry']['coordinates'])[:, :,
-                0:2].tolist()
+        coors = np.array(dict(json.loads(shp2['geometry'].to_json()))
+                         ['features'][0]['geometry']['coordinates'])[:, :, 0:2].tolist()
         self.aoi_geom = {"type": "Polygon", "coordinates": coors}
         # print(self.aoi_geom)
-        # Create empty variables
-        self.records_path = None
-        self.id_list_download = None
+        self.records_path = None # File path of execution track document
+        self.id_list_download = None # a list of item id which will be downloaded
 
     @staticmethod
     def asset_suffix(asset_type):
         '''
-
-        :param asset_type:
-        :return:
+        :param asset_type: string, one item in the list of asset type, more info:
+                            https://developers.planet.com/docs/data/psscene4band/
+        :return: string, associated suffix of each asset type
         '''
 
         switch = {
@@ -160,9 +159,8 @@ class Utilities:
     @staticmethod
     def pixel_res(satellite_abbr):
         '''
-
-        :param satellite_abbr:
-        :return:
+        :param satellite_abbr: string, abbreviation of satellite name, PS - PLanetScope, S2 - Sentinel-2
+        :return: int, associated pixel resolution of each satellite imagery
         '''
         switch = {
             'PS': 3,
@@ -219,7 +217,7 @@ class Utilities:
 
     def create_filter(self):
         '''
-        Set filters
+        Creater filters
         :return: filter
         '''
 
@@ -237,28 +235,28 @@ class Utilities:
     def download_one(self, item_id, asset_type, item_type):
         '''
         Download individual asset without using Planet client
-        :param item_id:
-        :param asset_type:
-        :param item_type:
-        :return:
+        :param item_id: string, item id
+        :param asset_type: string, one item in the list of asset type, more info:
+                            https://developers.planet.com/docs/data/psscene4band/
+        :param item_type: string, one item in the list of item type, more info:
+                            https://developers.planet.com/docs/data/items-assets/
+        :return: asset_exist, boolean, existence of required asset
         '''
 
         output_dir = self.work_dir + '\\' + self.output_dirs['raw']
         records_file = open(self.records_path, "a+")
 
+        # Request asset with item id
         item_url = 'https://api.planet.com/data/v1/item-types/{}/items/{}/assets'.format(item_type, item_id)
-        # Returns JSON metadata for assets in this ID.
-        # Learn more: planet.com/docs/reference/data-api/items-assets/#asset
         result = requests.get(item_url, auth=HTTPBasicAuth(self.api_key, ''))
-        # List of asset types available for this particular satellite image
+        # List the asset types available for this particular satellite image
         asset_type_list = result.json().keys()
         # print(asset_type_list)
         if asset_type in asset_type_list:
-            # Parse out useful links
             links = result.json()[u'{}'.format(asset_type)]['_links']
             self_link = links['_self']
             activation_link = links['activate']
-            # Request activation of the 'analytic' asset:
+            # Activate asset
             activation = requests.get(activation_link, auth=HTTPBasicAuth(self.api_key, ''))
             # print(activation.response.status_code)
             asset_activated = False
@@ -269,13 +267,13 @@ class Utilities:
                 if asset_status == 'active':
                     asset_activated = True
                     # print("Asset is active and ready to download")
-                    # Still activating. Wait and check again.
                 else:
+                    # Still activating. Wait and check again.
                     # print("...Still waiting for asset activation...")
                     # i += 1
                     # print('You have been waiting for {} minutes'.format(i - 1))
                     time.sleep(60)
-            # Image can be downloaded by making a GET with your Planet API key, from here:
+            # Download asset with download url
             download_url = activation_status_result.json()["location"]
             # print(download_link)
             response = requests.get(download_url, stream=True)
@@ -303,21 +301,24 @@ class Utilities:
 
     def download_client(self, item_id, asset_type, item_type):
         '''
+
         Activate and download individual asset with specific item id and asset type
-        Using Planet client
-        :param item:
-        :param asset_type:
-        :return: asset_exist, bolean
+        Using Planet client, slower than using download_one()
+        :param item_id: string, item id
+        :param asset_type: string, one item in the list of asset type, more info:
+                            https://developers.planet.com/docs/data/psscene4band/
+        :param item_type: string, one item in the list of item type, more info:
+                            https://developers.planet.com/docs/data/items-assets/
+        :return: asset_exist, boolean, existence of required asset
         '''
 
         output_dir = self.work_dir + '\\' + self.output_dirs['raw']
         records_file = open(self.records_path, "a+")
 
-        # Get asset and its activation status
         assets = self.client.get_assets_by_id(item_type, item_id).get()
         # print(assets.keys())
         if asset_type in assets.keys():
-            # Activate
+            # Activate asset
             activation = self.client.activate(assets[asset_type])
             # print(activation.response.status_code)
             asset_activated = False
@@ -336,7 +337,7 @@ class Utilities:
                     # i += 1
                     # print('You have been waiting for {} minutes'.format(i - 1))
                     time.sleep(60)
-            # Download
+            # Download asset
             callback = api.write_to_file(directory=output_dir)
             body = self.client.download(assets[asset_type], callback=callback)
             body.wait()
@@ -347,54 +348,76 @@ class Utilities:
         records_file.close()
         return asset_exist
 
-    def download_clipped(self, item_id):
+    def download_clipped(self, item_id, item_type, asset_type='analytic_sr'):
         '''
-        Activate and download clipped assets
-        :param item:
-        :return:
+        Activate and download clipped assets, does not support udm2
+        :param item_id: string, item id
+        :param asset_type: string, one item in the list of asset type, more info:
+                            https://developers.planet.com/docs/data/psscene4band/
+        :param item_type: string, one item in the list of item type, more info:
+                            https://developers.planet.com/docs/data/items-assets/
+        :return: asset_exist, boolean, existence of required asset
         '''
 
         # Create new folder
-        clipped_raw_dir = self.work_dir + '\\' + self.output_dirs['clipped_raw']
-        self.create_dir(clipped_raw_dir)
-        print('The clipped raw images will be saved in this directory: ' + clipped_raw_dir)
+        output_dir = self.work_dir + '\\' + self.output_dirs['clipped_raw']
+        self.create_dir(output_dir)
+        records_file = open(self.records_path, "a+")
+        print('The clipped raw images will be saved in this directory: ' + output_dir)
         # Construct clip API payload
         clip_payload = {
             'aoi': self.aoi_geom,
             'targets': [{
                 'item_id': item_id,
-                'item_type': "PSScene4Band",
-                'asset_type': 'analytic_sr'
+                'item_type': item_type,
+                'asset_type': asset_type
             }]}
         # Request clip of scene (This will take some time to complete)
         request = requests.post('https://api.planet.com/compute/ops/clips/v1', auth=(self.api_key, ''),
                                 json=clip_payload)
-        clip_url = request.json()['_links']['_self']
-        # print(request.json())
-        # Poll API to monitor clip status. Once finished, download and upzip the scene
-        clip_succeeded = False
-        while not clip_succeeded:
-            # Poll API
-            check_state_request = requests.get(clip_url, auth=(self.api_key, ''))
-            # If clipping process succeeded , we are done
-            if check_state_request.json()['state'] == 'succeeded':
-                clip_download_url = check_state_request.json()['_links']['results'][0]
-                clip_succeeded = True
-                print("Clip of scene succeeded and is ready to download")
-                # Download clip
-                response = requests.get(clip_download_url, stream=True)
-                with open(+ item_id + '.zip', "wb") as handle:
+        asset_type_list = request.json().keys()
+        # print(asset_type_list)
+        if asset_type in asset_type_list:
+            clip_url = request.json()['_links']['_self']
+            # print(request.json())
+            # Poll API to monitor clip status. Once finished, download and upzip the scene
+            clip_succeeded = False
+            while not clip_succeeded:
+                # Poll API
+                check_state_request = requests.get(clip_url, auth=(self.api_key, ''))
+                # If clipping process succeeded , we are done
+                if check_state_request.json()['state'] == 'succeeded':
+                    clip_download_url = check_state_request.json()['_links']['results'][0]
+                    clip_succeeded = True
+                    # print("Clip of scene succeeded and is ready to download")
+                else:
+                    # print("...Still waiting for asset activation...")
+                    # i += 1
+                    # print('You have been waiting for {} minutes'.format(i - 1))
+                    time.sleep(60)
+            # Download clipped asset
+            response = requests.get(clip_download_url, stream=True)
+            total_length = response.headers.get('content-length')
+            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_suffix(asset_type)),
+                      "wb") as handle:
+                if total_length is None:
                     for data in response.iter_content():
                         handle.write(data)
-                # Unzip file
-                ziped_item = zipfile.ZipFile(clipped_raw_dir + '\\' + item_id + '.zip')
-                ziped_item.extractall(clipped_raw_dir + '\\' + item_id)
-                # Delete zip file
-                os.remove(clipped_raw_dir + '\\' + item_id + '.zip')
-            else:
-                # Still activating. Wait 1 second and check again.
-                print("...Still waiting for clipping to complete...")
-                time.sleep(1)
+                else:
+                    dl = 0
+                    total_length = int(total_length)
+                    for data in response.iter_content(chunk_size=1024):
+                        handle.write(data)
+                        dl += len(data)
+                        done = int(50 * dl / total_length)
+                        sys.stdout.write("\r[%s%s]" % ('=' * done, ' ' * (50 - done)))
+                        sys.stdout.flush()
+            asset_exist = True
+        else:
+            records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
+            asset_exist = False
+        records_file.close()
+        return asset_exist
 
     @staticmethod
     def retrieve_exist_files(dir):
@@ -436,7 +459,7 @@ class Utilities:
 
         # Create filter
         and_filter = self.create_filter()
-        records_file.write('Filter settings: {}'.format(and_filter))
+        records_file.write('Filter settings: {}\n\n'.format(and_filter))
         # Search items
         req = filters.build_search_request(and_filter, self.item_types)
         res = self.client.quick_search(req)
@@ -477,7 +500,7 @@ class Utilities:
         print('The raw images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
         print('The information of missing assets has be saved in this file: ' + self.records_path)
         records_file = open(self.records_path, "a+")
-        records_file.write('End time: {}'.format(time_str))
+        records_file.write('End time: {}\n\n'.format(time_str))
         records_file.close()
 
     def gdal_translate(self, input_path, output_path):
@@ -526,7 +549,7 @@ class Utilities:
         records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         records_file.write('Execute udm2_setnull():\nArguments: file_list={}\nStart time: {}\n\n'
-                           .format(time_str, file_list))
+                           .format(file_list, time_str))
 
         input_dir = self.work_dir + '\\' + self.output_dirs['raw']
         output_dir = input_dir
@@ -537,6 +560,8 @@ class Utilities:
                 a = glob("{}\\{}*udm2.tif".format(input_dir, i))
                 for j in a:
                     file_list.append(j)
+        else:
+            file_list = [file for file in file_list if 'udm2' in file]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
             output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
@@ -568,12 +593,12 @@ class Utilities:
         :return:
         '''
 
-        self.udm2_setnull()
+        self.udm2_setnull(file_list)
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute merge():\nArguments: file_list={}\nStart time: {}\n\n'.format(time_str, file_list))
+        records_file.write('Execute merge():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
         input_dir = self.work_dir + '\\' + self.output_dirs['raw']
         output_dir = self.work_dir + '\\' + self.output_dirs['merge']
 
@@ -606,16 +631,16 @@ class Utilities:
         records_file.close()
 
     @staticmethod
-    def gdal_clip(input_path, pixel_res, shapefile_path, cut_line_name, output_path):
+    def gdal_clip(input_path, pixel_res, shapefile_path, output_path):
         '''
         GDAL clip function
         :param input_file_path:
         :param pixel_res:
         :param shapefile_path:
-        :param cut_line_name:
         :param output_file_path:
         :return:
         '''
+
         # Open datasets
         raster = gdal.Open(input_path, gdal.GA_ReadOnly)
         # Projection = Raster.GetProjectionRef()
@@ -635,7 +660,7 @@ class Utilities:
                             # dstSRS='epsg:{}'.format(str(self.proj_code)),
                             resampleAlg=gdal.GRA_NearestNeighbour,
                             cutlineDSName=shapefile_path,
-                            cutlineLayer=cut_line_name,
+                            cutlineLayer=shapefile_path.split('\\')[-1].split('.')[0],
                             cropToCutline=True,
                             dstNodata=-9999,
                             options=['COMPRESS=LZW'])
@@ -653,13 +678,12 @@ class Utilities:
         print('Start GDAL clip :)')
         records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(time_str, file_list))
+        records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
         input_dir = self.work_dir + '\\' + self.output_dirs['merge']
         output_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         pixel_res = self.pixel_res(self.satellite)
         shapefile_path = self.aoi_shp
-        cut_line_name = shapefile_path.split('\\')[-1].split('.')[0]
 
         if file_list is None:
             file_list = []
@@ -672,7 +696,7 @@ class Utilities:
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
             output_name = input_path.split('\\')[-1]
             output_path = output_dir + '\\' + output_name
-            self.gdal_clip(input_path, pixel_res, shapefile_path, cut_line_name, output_path)
+            self.gdal_clip(input_path, pixel_res, shapefile_path, output_path)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
@@ -715,8 +739,8 @@ class Utilities:
         print('Start GDAL band calculation :)')
         records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute merge():\nArguments: output_type={} file_list={}\nStart time: {}\n\n'
-                           .format(time_str, output_type, file_list))
+        records_file.write('Execute band_algebra():\nArguments: output_type={} file_list={}\nStart time: {}\n\n'
+                           .format(output_type, file_list, time_str))
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         if output_type == 'clear prob':
@@ -727,6 +751,8 @@ class Utilities:
                     a = glob("{}\\{}*udm2.tif".format(input_dir, i))
                     for j in a:
                         file_list.append(j)
+            else:
+                file_list = [file for file in file_list if 'udm2' in file]
             for udm2_path in file_list:
                 clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1]
                 self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
@@ -741,6 +767,8 @@ class Utilities:
                     a = glob("{}\\{}*SR.tif".format(input_dir, i))
                     for j in a:
                         file_list.append(j)
+            else:
+                file_list = [file for file in file_list if 'SR' in file]
             for sr_path in file_list:
                 ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1]
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
@@ -750,9 +778,10 @@ class Utilities:
             records_file.write('End time: {}\n\n'.format(time_str))
             records_file.close()
 
-    def mask_cloud(self):
+    def mask_cloud(self, prob_mini):
         '''
-        Remove cloudy pixels
+
+        :param prob_mini:
         :return:
         '''
 
@@ -780,15 +809,18 @@ if __name__ == '__main__':
     ut = Utilities()
     ut.start_up()
     # ut.id_list_download = ['20190107_074019_1049', '20190107_074018_1049']
-    ut.download_assets()
-    ut.merge()
-    ut.clip()
-    ut.band_algebra(output_type='cloud mask')
+    # ut.download_assets()
+    # ut.merge()
+    # ut.clip()
+    # ut.band_algebra(output_type='cloud mask')
+
     # date_list = [i.split('_')[0] for i in ut.id_list_download]
     # for date in date_list:
     #     file_list = []
-    #     a = glob("{}\\{}*udm2.tif".format(ut.work_dir + '\\merge', date))
+    #     a = glob("{}\\{}*udm2.tif".format(ut.work_dir + ut.output_dirs['merge'], date))
     #     for i in a:
     #         file_list.append(i)
-    # ut.clip(file_list=file_list)
-    # ut.band_algebra(output_type='clear prob', file_list=file_list)
+
+    # ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
+    # ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
+    # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
