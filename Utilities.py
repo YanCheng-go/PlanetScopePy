@@ -65,7 +65,7 @@ class Utilities:
     default_gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
     default_gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
     # Set directories
-    default_work_dir = r'C:\Users\ChengY\Desktop'
+    default_work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
                            'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
     # API Key
@@ -80,7 +80,7 @@ class Utilities:
     default_start_date = '2019-01-20'
     default_end_date = '2019-01-31'
     default_cloud_cover = 0.8
-    default_aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+    default_aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
     # Color composition for visualization
     default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2} # False color composition for PlanetScope images
     default_dpi = 90
@@ -952,6 +952,6 @@ if __name__ == '__main__':
     # ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
     # ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
     # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
-    # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp',
+    # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\bomas\layers\POLYGON.shp',
     #                    clear_perc_min=0.1, save_rgb=True, save_clip=True,
     #                    file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))

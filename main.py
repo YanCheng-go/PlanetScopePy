@@ -22,7 +22,7 @@ ut.gdal_calc_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site
 ut.gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
 ut.gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
 # Set work directory
-ut.work_dir = r'C:\Users\ChengY\Desktop'
+ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
 # Set folders for saving different outputs
 ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
@@ -37,7 +37,7 @@ ut.asset_types = ['analytic_sr', 'udm2']
 ut.start_date = '2019-01-01'
 ut.end_date = '2019-01-31'
 ut.cloud_cover = 0.8
-ut.aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.dpi = 90
@@ -58,7 +58,7 @@ ut.start_up()
 # # ut.clip()
 # # ut.band_algebra(output_type='clear prob')
 # # ut.band_algebra(output_type='NDVI')
-# # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
+# # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
 # #                    save_rgb=True, save_clip=False) # Bomas...
 #
 #
@@ -68,14 +68,14 @@ ut.start_up()
 # # Another easier way to do so is that you can change the work_dir and name of the folder for saving downloaded
 # # images on line 8 and line 10 in this script
 # # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# output_dir = r'C:\Users\ChengY\Desktop\raw'
+# output_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
 # ut.download_assets(output_dir=output_dir)
 #
 #
 # # ===================================         Merge        ======================================#
 # # Set input directory that includes all data to be merged
 # # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# input_dir = r'C:\Users\ChengY\Desktop\raw'
+# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
 # file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
 # # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
 # ut.merge(file_list=file_list)
@@ -84,7 +84,7 @@ ut.start_up()
 # # ===================================         Clip        ======================================#
 # # Set input directory that includes all data to be clipped
 # # the default directory is [..\merge], which is the automatically created folder for saving merged images
-# input_dir = r'C:\Users\ChengY\Desktop\merge'
+# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\merge'
 # file_list = glob("{}\\*udm2.tif".format(input_dir))
 # ut.clip(file_list=file_list)
 #
@@ -92,18 +92,18 @@ ut.start_up()
 # # ===================================         Clear probability        ======================================#
 # # Set input directory
 # # the default directory is [..\clip], which is the automatically created folder for saving clipped images
-# input_dir = r'C:\Users\ChengY\Desktop\clip'
+# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\clip'
 # file_list = glob("{}\\*udm2.tif".format(input_dir))
 # ut.band_algebra(input_type='clear prob', file_list=file_list)
 
 
 # # ===================================         Bomas       ======================================#
 # # Clip based on percentage of clear pixels, for bomas visualization
-# bomas_shp = r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp'
+# bomas_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\bomas\layers\POLYGON.shp'
 # clear_perc_min = 0.1
 # save_rgb = True
 # save_clip = False
-# file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\Desktop\clip'))
+# file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\clip'))
 # ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 
