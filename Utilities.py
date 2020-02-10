@@ -38,6 +38,9 @@ from tqdm import tqdm
 from glob import glob
 import os
 from osgeo import ogr, gdal
+import rasterio
+from rasterio.plot import show
+import matplotlib.pyplot as plt
 import numpy as np
 import requests
 from requests.auth import HTTPBasicAuth
@@ -78,6 +81,9 @@ class Utilities:
     default_end_date = '2019-01-31'
     default_cloud_cover = 0.8
     default_aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+    # Color composition for visualization
+    default_rgb_composition = {'red': 4, 'green': 3, 'blue':2} # False color composition for PlanetScope images
+    default_dpi = 90
 
     def __init__(self, gdal_scripts_path=default_gdal_scripts_path, gdal_data_path=default_gdal_data_path,
                  gdal_calc_path=default_gdal_calc_path, gdal_merge_path=default_gdal_merge_path,
@@ -85,7 +91,8 @@ class Utilities:
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
                  api_key=default_api_key, filter_items=default_filter_items, item_types=default_item_types,
                  asset_types=default_asset_types, start_date=default_start_date, end_date=default_end_date,
-                 cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp):
+                 cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp, rgb_composition=default_rgb_composition,
+                 dpi=default_dpi):
         '''
 
         :param gdal_scripts_path: string
@@ -105,6 +112,8 @@ class Utilities:
         :param end_date: string, end date with a format of 'YYYY-MM-DD'
         :param cloud_cover: float, maximum cloud cover
         :param aoi_shp: string, file path of AOI.shp, better to be projected one
+        :param rgb_composition: list, band sequence for rgb color composition, [4, 1, 3] is false color composition for
+                                PlanetScope images
         '''
 
         self.gdal_scripts_path = gdal_scripts_path
@@ -138,6 +147,8 @@ class Utilities:
                          ['features'][0]['geometry']['coordinates'])[:, :, 0:2].tolist()
         self.aoi_geom = {"type": "Polygon", "coordinates": coors}
         # print(self.aoi_geom)
+        self.rgb_composition = rgb_composition
+        self.dpi = dpi
         self.records_path = None # File path of execution track document
         self.id_list_download = None # a list of item id which will be downloaded
 
@@ -451,6 +462,8 @@ class Utilities:
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         records_file.write('Execute download_assets():\nArguments: clipped={} output_dir={}\nStart time: {}\n\n'
                            .format(clipped, output_dir, time_str))
+        if output_dir is None:
+            output_dir = self.work_dir + '\\' + self.output_dirs['raw']
 
         # Download clipped assets or not
         if clipped is None:
@@ -496,9 +509,9 @@ class Utilities:
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish downloading assets :)')
-        print('The raw images have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
+        print('The raw images have been saved in this directory: ' + output_dir)
         print('The information of missing assets has be saved in this file: ' + self.records_path)
-        records_file = open(self.records_path, "a+")
+        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         records_file.write('End time: {}\n\n'.format(time_str))
         records_file.close()
 
@@ -568,8 +581,10 @@ class Utilities:
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish processing udm2 data :)')
-        print('The outputs have been saved in this directory: ' + self.work_dir + '\\' + self.output_dirs['raw'])
+        print('The outputs have been saved in this directory: ' + output_dir)
+        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         records_file.write('End time: {}\n\n'.format(time_str))
+        records_file.close()
 
     def gdal_merge(self, input_path, output_path, data_type):
         '''
@@ -592,7 +607,8 @@ class Utilities:
         :return:
         '''
 
-        self.udm2_setnull(file_list)
+        # Preprocessing udm2 data
+        self.udm2_setnull(file_list = [file for file in file_list if 'setnull' in file])
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -624,8 +640,8 @@ class Utilities:
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
-        print('The merged images have been saved in this directory: ' +
-              self.work_dir + '\\' + self.output_dirs['merge'])
+        print('The merged images have been saved in this directory: ' + output_dir)
+        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         records_file.write('End time: {}\n\n'.format(time_str))
         records_file.close()
 
@@ -700,6 +716,7 @@ class Utilities:
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
         print('The clipped images have been saved in this directory: ' + output_dir)
+        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         records_file.write('End time: {}\n\n'.format(time_str))
         records_file.close()
 
@@ -774,6 +791,7 @@ class Utilities:
             time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + ndvi_dir)
+            records_file.write('The outputs have been saved in this directory: {}\n\n'.format(ndvi_dir))
             records_file.write('End time: {}\n\n'.format(time_str))
             records_file.close()
 
@@ -796,13 +814,23 @@ class Utilities:
         :return:
         '''
 
-    def plot_thrumbnail(self):
+    def normalize(self, array, percentile=None):
         '''
-
-        :return:
+        Normalize bands into 0.0 - 1.0 scale
+        :param array: list or numpy array
+        :param percentile: list, a list of percentile, [20, 50] - 20th and 50th percentile
+        :return: numpy array, normalized array
         '''
+        array_np = np.array(array)
+        array_flat = np.array(array_np).flatten()
+        if percentile is None:
+            array_min, array_max = array_flat.min(), array_flat.max()
+        else:
+            array_min = np.percentile(array_flat, min(percentile))
+            array_max = np.percentile(array_flat, max(percentile))
+        return (array_np - array_min) / (array_max - array_min)
 
-    def clip_clear_perc(self, shapefile_path, clear_perc_min, file_list=None):
+    def clip_clear_perc(self, shapefile_path, clear_perc_min, save_rgb=True, save_clip=False, file_list=None):
         '''
         Clip images to the extent of AOI.shp if only the percentage of clear pixels within the extent of AOI.shp
         higher than the threshold
@@ -815,16 +843,17 @@ class Utilities:
         print('Start to clip images :)')
         records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute clip_clear_perc():\nArguments: shapefile_path={} clear_perc_min={} '
-                           'file_list={}\nStart time: {}\n\n'.format(shapefile_path, clear_perc_min,
-                                                                     file_list, time_str))
+        records_file.write('Execute clip_clear_perc():\nArguments: shapefile_path={} clear_perc_min={} save_rgb={}, '
+                           'save_clip={} file_list={}\nStart time: {}\n\n'.format(shapefile_path, clear_perc_min,
+                                                                                  save_rgb, save_clip, file_list,
+                                                                                  time_str))
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
         output_dir = self.work_dir + '\\' + self.output_dirs['clip clear perc']
 
         pixel_res = self.pixel_res(self.satellite)  # pixel resolution
         # List merged and clipped udm2 file path
         if file_list is None:
-            file_list = glob('{}\\{}\\*udm2.tif'.format(ut.work_dir, ut.output_dirs['clip']))
+            file_list = glob('{}\\{}\\*udm2.tif'.format(self.work_dir, self.output_dirs['clip']))
         else:
             file_list = [file for file in file_list if 'udm2' in file]
 
@@ -849,15 +878,42 @@ class Utilities:
             # analytic_sr imagery to specific folder
             if clear_perc >= clear_perc_min:
                 asset_id_list.append(asset_id)
-                input_path = '{}\\{}_{}.tif'.format(input_dir, asset_id,
-                                                    ut.asset_suffix(asset_type='analytic_sr'))
-                output_path = '{}\\{}_{}.tif'.format(output_dir, asset_id,
-                                                     ut.asset_suffix(asset_type='analytic_sr'))
-                ut.gdal_clip(input_path, pixel_res, shapefile_path, output_path)
+                asset_name = asset_id + '_' + self.asset_suffix(asset_type='analytic_sr')
+                input_path = '{}\\{}.tif'.format(input_dir, asset_name)
+                vsimem_path = '/vsimem/{}.tif'.format(asset_name)
+                self.gdal_clip(input_path, pixel_res, shapefile_path, vsimem_path)
+
+                if save_clip is True:
+                    raster = gdal.Open(vsimem_path)
+                    output_path = '{}\\{}.tif'.format(output_dir, asset_name)
+                    OutTile = gdal.Warp(output_path, raster)
+                    OutTile = None
+                    raster = None
+
+                if save_rgb is True:
+                    with rasterio.open(vsimem_path) as src:
+                        raster = src.read(self.rgb_composition)
+                        # Convert to numpy arrays
+                        nir = raster.read(self.rgb_composition['red'])
+                        red = raster.read(self.rgb_composition['green'])
+                        green = raster.read(self.rgb_composition['blue'])
+                        # Normalize band DN
+                        nir_norm = self.normalize(nir)
+                        red_norm = self.normalize(red)
+                        green_norm = self.normalize(green)
+                        # Stack bands
+                        nrg = np.dstack((nir_norm, red_norm, green_norm))
+                        # View the color composite
+                        fig = plt.figure()
+                        plt.imshow(nrg)
+                        plot_path = '{}\\{}_thumbnail.png'.format(output_dir, asset_name)
+                        fig.save_fig(plot_path, dpi=self.dpi)
+
         records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images:)')
         print('The outputs have been saved in this directory: ' + output_dir)
+        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         records_file.write('End time: {}\n\n'.format(time_str))
         records_file.close()
 
@@ -880,8 +936,8 @@ if __name__ == '__main__':
     # ut.band_algebra(output_type='clear prob')
 
     # Test merge, clip and band_algebra
-    # ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
-    # ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
-    # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir,
-    # ut.output_dirs['clip'])))
-    ut.clip_clear_perc(ut.aoi_shp, 0.1, file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
+    ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
+    ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
+    ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
+    ut.clip_clear_perc(ut.aoi_shp, 0.1, save_rgb=True, save_clip=False,
+                       file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))

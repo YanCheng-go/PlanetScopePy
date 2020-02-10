@@ -30,6 +30,8 @@ ut.start_date = '2019-01-01'
 ut.end_date = '2019-01-31'
 ut.cloud_cover = 0.8
 ut.aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
+ut.dpi = 90
 
 
 # ===================================       Set up everything          ======================================#
@@ -45,7 +47,8 @@ ut.merge()
 ut.clip()
 ut.band_algebra(output_type='clear prob')
 ut.band_algebra(output_type='NDVI')
-ut.clip_clear_perc(bomas_shp= r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp', clear_perc_min=0.8) # Bomas...
+ut.clip_clear_perc(bomas_shp= r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp', clear_perc_min=0.1,
+                   save_rgb=True, save_clip=False) # Bomas...
 
 
 # ===================================         Download       ======================================#
@@ -86,9 +89,11 @@ ut.band_algebra(input_type='clear prob', file_list=file_list)
 # ===================================         Biomas       ======================================#
 # Clip based on percentage of clear pixels, for bomas visualization
 bomas_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
-clear_perc_min = 0.5
+clear_perc_min = 0.1
+save_rgb=True
+save_clip=False
 file_list = glob("{}\\*udm2.tif".format(r'C:\Users\ChengY\Desktop\clip'))
-ut.clip_clear_perc(bomas_shp, clear_perc_min, file_list)
+ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 
 
