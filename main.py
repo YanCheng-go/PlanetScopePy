@@ -1,3 +1,11 @@
+'''
+======================================
+Preprocessing for PlanetScope imagery
+Author: Yan Cheng
+Contributors: Dr. Anton Vrieling
+======================================
+'''
+
 import Utilities as utils
 from glob import glob
 
@@ -30,8 +38,11 @@ ut.start_date = '2019-01-01'
 ut.end_date = '2019-01-31'
 ut.cloud_cover = 0.8
 ut.aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+# Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.dpi = 90
+ut.percentile = [2, 98]
+
 
 
 # ===================================       Set up everything          ======================================#
@@ -39,16 +50,16 @@ ut.dpi = 90
 ut.start_up()
 
 #
-# # ===================================         All in one        ======================================#
-# # Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
-# # the output of one process is the input of next process...
-# ut.download_assets()
-# ut.merge()
-# ut.clip()
-# ut.band_algebra(output_type='clear prob')
-# ut.band_algebra(output_type='NDVI')
-# ut.clip_clear_perc(bomas_shp= r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
-#                    save_rgb=True, save_clip=False) # Bomas...
+# # # ===================================         All in one        ======================================#
+# # # Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
+# # # the output of one process is the input of next process...
+# # ut.download_assets()
+# # ut.merge()
+# # ut.clip()
+# # ut.band_algebra(output_type='clear prob')
+# # ut.band_algebra(output_type='NDVI')
+# # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
+# #                    save_rgb=True, save_clip=False) # Bomas...
 #
 #
 # # ===================================         Download       ======================================#
@@ -86,14 +97,14 @@ ut.start_up()
 # ut.band_algebra(input_type='clear prob', file_list=file_list)
 
 
-# ===================================         Biomas       ======================================#
-# Clip based on percentage of clear pixels, for bomas visualization
-bomas_shp = r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp'
-clear_perc_min = 0.1
-save_rgb = True
-save_clip = False
-file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\Desktop\clip'))
-ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
+# # ===================================         Bomas       ======================================#
+# # Clip based on percentage of clear pixels, for bomas visualization
+# bomas_shp = r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp'
+# clear_perc_min = 0.1
+# save_rgb = True
+# save_clip = False
+# file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\Desktop\clip'))
+# ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 
 

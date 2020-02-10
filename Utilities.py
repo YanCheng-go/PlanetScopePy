@@ -10,12 +10,13 @@ Contributors: Dr. Anton Vrieling
 Preparations
 =======================================
 0. Download Anaconda
-1. conda install -c conda-forge geopandas
-2. remove gdal from site-packages
-3. remove pyproj from site-packages
-4. pip install pyproj
-5. pip install planet
-6. install gdal using the .whl file from https://www.lfd.uci.edu/~gohlke/pythonlibs/
+1. conda install rasterio
+2. conda install -c conda-forge geopandas
+3. remove gdal from site-packages
+4. remove pyproj from site-packages
+5. pip install pyproj
+6. pip install planet
+7. install gdal using the .whl file from https://www.lfd.uci.edu/~gohlke/pythonlibs/
     pip install [PATH OF GDAL WHL FILE]
 
 To do list   
@@ -81,8 +82,9 @@ class Utilities:
     default_cloud_cover = 0.8
     default_aoi_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
     # Color composition for visualization
-    default_rgb_composition = {'red': 4, 'green': 3, 'blue':2} # False color composition for PlanetScope images
+    default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2} # False color composition for PlanetScope images
     default_dpi = 90
+    default_percentile = [2, 98]
 
     def __init__(self, gdal_scripts_path=default_gdal_scripts_path, gdal_data_path=default_gdal_data_path,
                  gdal_calc_path=default_gdal_calc_path, gdal_merge_path=default_gdal_merge_path,
@@ -91,7 +93,7 @@ class Utilities:
                  api_key=default_api_key, filter_items=default_filter_items, item_types=default_item_types,
                  asset_types=default_asset_types, start_date=default_start_date, end_date=default_end_date,
                  cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp, rgb_composition=default_rgb_composition,
-                 dpi=default_dpi):
+                 dpi=default_dpi, percentile=default_percentile):
         '''
 
         :param gdal_scripts_path: string
@@ -113,6 +115,8 @@ class Utilities:
         :param aoi_shp: string, file path of AOI.shp, better to be projected one
         :param rgb_composition: list, band sequence for rgb color composition, [4, 1, 3] is false color composition for
                                 PlanetScope images
+        :param dpi: int, dpi of saved plot
+        :param percentile: list, minimum and maximum percentile
         '''
 
         self.gdal_scripts_path = gdal_scripts_path
@@ -135,8 +139,19 @@ class Utilities:
                                  day=int(end_date.split('-')[2]))
         self.cloud_cover = cloud_cover
         self.aoi_shp = aoi_shp
-        # Convert AOI shapefile to json format that is required for retrieve imagery for specific location
-        # using Planet API
+        self.rgb_composition = rgb_composition
+        self.dpi = dpi
+        self.percentile = percentile
+        self.records_path = None # File path of execution track document
+        self.id_list_download = None # a list of item id which will be downloaded
+
+    def shp_to_json(self):
+        '''
+        Convert AOI shapefile to json format that is required for retrieve imagery for specific location
+        using Planet API
+        :return: aoi_geom, dictionary
+        '''
+
         shp = gpd.read_file(self.aoi_shp)
         if shp.crs != {'init': 'epsg:{}'.format(str(self.proj_code))}:
             shp = shp.to_crs({'init': 'epsg:{}'.format(str(self.proj_code))})
@@ -144,12 +159,9 @@ class Utilities:
             shp2 = shp.to_crs({'init': 'epsg:4326'})
         coors = np.array(dict(json.loads(shp2['geometry'].to_json()))
                          ['features'][0]['geometry']['coordinates'])[:, :, 0:2].tolist()
-        self.aoi_geom = {"type": "Polygon", "coordinates": coors}
+        aoi_geom = {"type": "Polygon", "coordinates": coors}
         # print(self.aoi_geom)
-        self.rgb_composition = rgb_composition
-        self.dpi = dpi
-        self.records_path = None # File path of execution track document
-        self.id_list_download = None # a list of item id which will be downloaded
+        return aoi_geom
 
     @staticmethod
     def asset_suffix(asset_type):
@@ -237,7 +249,8 @@ class Utilities:
             cloud_filter = filters.range_filter('cloud_cover', lte=self.cloud_cover)
             and_filter = filters.and_filter(and_filter, cloud_filter)
         if 'aoi' in list(self.filter_items):
-            aoi_filter = filters.geom_filter(self.aoi_geom)
+            aoi_geom = self.shp_to_json()
+            aoi_filter = filters.geom_filter(aoi_geom)
             and_filter = filters.and_filter(and_filter, aoi_filter)
         return and_filter
 
@@ -375,7 +388,7 @@ class Utilities:
         print('The clipped raw images will be saved in this directory: ' + output_dir)
         # Construct clip API payload
         clip_payload = {
-            'aoi': self.aoi_geom,
+            'aoi': self.shp_to_json(),
             'targets': [{
                 'item_id': item_id,
                 'item_type': item_type,
@@ -613,8 +626,9 @@ class Utilities:
         exist_setnull = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
         item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
-        self.udm2_setnull(file_list=[file for file in file_list for i in new_setnull if i in file])
-        exist_setnull, item_id_list, new_setnull = None
+        if len(new_setnull) != 0:
+            self.udm2_setnull(file_list=[file for file in file_list for i in new_setnull if i in file])
+        exist_setnull, item_id_list, new_setnull = None, None, None
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -707,9 +721,6 @@ class Utilities:
         input_dir = self.work_dir + '\\' + self.output_dirs['merge']
         output_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
-        pixel_res = self.pixel_res(self.satellite)
-        shapefile_path = self.aoi_shp
-
         if file_list is None:
             file_list = []
             for i in self.id_list_download:
@@ -725,7 +736,7 @@ class Utilities:
                 data_type = 'Byte'
             if 'SR' in input_path:
                 data_type = 'UInt16'
-            self.gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type)
+            self.gdal_clip(input_path, self.pixel_res(self.satellite), self.aoi_shp, output_path, data_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
@@ -900,9 +911,9 @@ class Utilities:
                         red = raster.read(self.rgb_composition['green'])
                         green = raster.read(self.rgb_composition['blue'])
                         # Normalize band DN
-                        nir_norm = self.normalize(nir)
-                        red_norm = self.normalize(red)
-                        green_norm = self.normalize(green)
+                        nir_norm = self.normalize(nir, self.percentile)
+                        red_norm = self.normalize(red, self.percentile)
+                        green_norm = self.normalize(green, self.percentile)
                         # Stack bands
                         nrg = np.dstack((nir_norm, red_norm, green_norm))
                         # View the color composite
