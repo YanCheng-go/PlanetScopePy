@@ -20,11 +20,10 @@ Preparations
 
 To do list   
 ====================================== 
-- Remove clouds
 - Stack NDVI and clear prob
-- Plot time series (merge and cloud)
-- Map or apply
-- satellite id... split
+- Plot time series
+- Optimize for loops
+- Satellite id info from Execution Track file
 - gdal warp
 '''
 
@@ -575,6 +574,8 @@ class Utilities:
         else:
             file_list = [file for file in file_list if 'udm2' in file]
 
+        print(file_list)
+
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
             output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
             self.gdal_udm2_setnull(input_path, output_path)
@@ -608,7 +609,12 @@ class Utilities:
         '''
 
         # Preprocessing udm2 data
-        self.udm2_setnull(file_list = [file for file in file_list if 'setnull' in file])
+        # Remove exist setnull data from file_list
+        exist_setnull = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
+        item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
+        new_setnull = [i for i in item_id_list if i not in exist_setnull]
+        self.udm2_setnull(file_list=[file for file in file_list for i in new_setnull if i in file])
+        exist_setnull, item_id_list, new_setnull = None
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -646,7 +652,7 @@ class Utilities:
         records_file.close()
 
     @staticmethod
-    def gdal_clip(input_path, pixel_res, shapefile_path, output_path):
+    def gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type):
         '''
         GDAL clip function
         :param input_file_path:
@@ -666,9 +672,13 @@ class Utilities:
         feature = layer.GetFeature(0)
         geom = feature.GetGeometryRef()
         minX, maxX, minY, maxY = geom.GetEnvelope()  # Get bounding box of the shapefile feature
+        if data_type == 'UInt16':
+            gdal_data_type = gdal.GDT_UInt16
+        if data_type == 'Byte':
+            gdal_data_type = gdal.GDT_Byte
         # Create raster
         OutTile = gdal.Warp(output_path, raster, format='GTiff',
-                            outputType=gdal.GDT_Byte,
+                            outputType=gdal_data_type,
                             outputBounds=[minX, minY, maxX, maxY],
                             xRes=pixel_res, yRes=pixel_res,
                             targetAlignedPixels=True,
@@ -711,7 +721,11 @@ class Utilities:
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
             output_name = input_path.split('\\')[-1]
             output_path = output_dir + '\\' + output_name
-            self.gdal_clip(input_path, pixel_res, shapefile_path, output_path)
+            if 'udm2' in input_path:
+                data_type = 'Byte'
+            if 'SR' in input_path:
+                data_type = 'UInt16'
+            self.gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
@@ -770,7 +784,7 @@ class Utilities:
             else:
                 file_list = [file for file in file_list if 'udm2' in file]
             for udm2_path in file_list:
-                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1]
+                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_udm2')[0] + '_clearprob.tif'
                 self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + clear_prob_dir)
@@ -786,7 +800,7 @@ class Utilities:
             else:
                 file_list = [file for file in file_list if 'SR' in file]
             for sr_path in file_list:
-                ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1]
+                ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1].split('_Analytic_SR')[0] + '_ndvi.tif'
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
             time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
@@ -794,13 +808,6 @@ class Utilities:
             records_file.write('The outputs have been saved in this directory: {}\n\n'.format(ndvi_dir))
             records_file.write('End time: {}\n\n'.format(time_str))
             records_file.close()
-
-    def mask_cloud(self, prob_mini):
-        '''
-
-        :param prob_mini:
-        :return:
-        '''
 
     def stack_bands(self):
         '''
@@ -851,6 +858,7 @@ class Utilities:
         output_dir = self.work_dir + '\\' + self.output_dirs['clip clear perc']
 
         pixel_res = self.pixel_res(self.satellite)  # pixel resolution
+        shp_name = shapefile_path.split('\\')[-1].split('.shp')[0]
         # List merged and clipped udm2 file path
         if file_list is None:
             file_list = glob('{}\\{}\\*udm2.tif'.format(self.work_dir, self.output_dirs['clip']))
@@ -863,7 +871,7 @@ class Utilities:
             asset_id = asset_name.split('_udm2')[0]
             # Clip udm2 to the extent of bomas AOI.shp and save in memory
             vsimem_path = '/vsimem/' + asset_name + '.tif'
-            self.gdal_clip(file, pixel_res, shapefile_path, vsimem_path)
+            self.gdal_clip(file, pixel_res, shapefile_path, vsimem_path, data_type='Byte')
             raster = gdal.Open(vsimem_path)
             # Convert the first band (clear) to numpy array
             clear_band_array = np.array(raster.GetRasterBand(1).ReadAsArray())
@@ -880,19 +888,13 @@ class Utilities:
                 asset_id_list.append(asset_id)
                 asset_name = asset_id + '_' + self.asset_suffix(asset_type='analytic_sr')
                 input_path = '{}\\{}.tif'.format(input_dir, asset_name)
-                vsimem_path = '/vsimem/{}.tif'.format(asset_name)
-                self.gdal_clip(input_path, pixel_res, shapefile_path, vsimem_path)
-
                 if save_clip is True:
-                    raster = gdal.Open(vsimem_path)
-                    output_path = '{}\\{}.tif'.format(output_dir, asset_name)
-                    OutTile = gdal.Warp(output_path, raster)
-                    OutTile = None
-                    raster = None
-
+                    output_path = '{}\\{}_{}.tif'.format(output_dir, asset_name, shp_name)
+                    self.gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type='UInt16')
                 if save_rgb is True:
-                    with rasterio.open(vsimem_path) as src:
-                        raster = src.read(self.rgb_composition)
+                    vsimem_path = '/vsimem/{}.tif'.format(asset_name)
+                    self.gdal_clip(input_path, pixel_res, shapefile_path, vsimem_path, data_type='UInt16')
+                    with rasterio.open(vsimem_path) as raster:
                         # Convert to numpy arrays
                         nir = raster.read(self.rgb_composition['red'])
                         red = raster.read(self.rgb_composition['green'])
@@ -906,8 +908,8 @@ class Utilities:
                         # View the color composite
                         fig = plt.figure()
                         plt.imshow(nrg)
-                        plot_path = '{}\\{}_thumbnail.png'.format(output_dir, asset_name)
-                        fig.save_fig(plot_path, dpi=self.dpi)
+                        plot_path = '{}\\{}_{}_thumbnail.png'.format(output_dir, asset_name, shp_name)
+                        fig.savefig(plot_path, dpi=self.dpi)
 
         records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -936,8 +938,9 @@ if __name__ == '__main__':
     # ut.band_algebra(output_type='clear prob')
 
     # Test merge, clip and band_algebra
-    ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
-    ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
-    ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
-    ut.clip_clear_perc(ut.aoi_shp, 0.1, save_rgb=True, save_clip=False,
-                       file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
+    # ut.merge(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['raw'])))
+    # ut.clip(file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['merge'])))
+    # ut.band_algebra(output_type='clear prob', file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))
+    # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp',
+    #                    clear_perc_min=0.1, save_rgb=True, save_clip=True,
+    #                    file_list=glob("{}\\{}\\*.tif".format(ut.work_dir, ut.output_dirs['clip'])))

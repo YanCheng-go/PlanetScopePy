@@ -38,61 +38,61 @@ ut.dpi = 90
 # Create default folders and execution track file
 ut.start_up()
 
-
-# ===================================         All in one        ======================================#
-# Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
-# the output of one process is the input of next process...
-ut.download_assets()
-ut.merge()
-ut.clip()
-ut.band_algebra(output_type='clear prob')
-ut.band_algebra(output_type='NDVI')
-ut.clip_clear_perc(bomas_shp= r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp', clear_perc_min=0.1,
-                   save_rgb=True, save_clip=False) # Bomas...
-
-
-# ===================================         Download       ======================================#
-# In case you have downloaded some images before using this script and want to save new images in the same folder,
-# you can specify the folder by assigning a value to output_dir argument.
-# Another easier way to do so is that you can change the work_dir and name of the folder for saving downloaded
-# images on line 8 and line 10 in this script
-# the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-output_dir = r'C:\Users\ChengY\Desktop\raw'
-ut.download_assets(output_dir=output_dir)
-
-
-# ===================================         Merge        ======================================#
-# Set input directory that includes all data to be merged
-# the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-input_dir = r'C:\Users\ChengY\Desktop\raw'
-file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
-# file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
-ut.merge(file_list=file_list)
-
-
-# ===================================         Clip        ======================================#
-# Set input directory that includes all data to be clipped
-# the default directory is [..\merge], which is the automatically created folder for saving merged images
-input_dir = r'C:\Users\ChengY\Desktop\merge'
-file_list = glob("{}\\*udm2.tif".format(input_dir))
-ut.clip(file_list=file_list)
-
-
-# ===================================         Clear probability        ======================================#
-# Set input directory
-# the default directory is [..\clip], which is the automatically created folder for saving clipped images
-input_dir = r'C:\Users\ChengY\Desktop\clip'
-file_list = glob("{}\\*udm2.tif".format(input_dir))
-ut.band_algebra(input_type='clear prob', file_list=file_list)
+#
+# # ===================================         All in one        ======================================#
+# # Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
+# # the output of one process is the input of next process...
+# ut.download_assets()
+# ut.merge()
+# ut.clip()
+# ut.band_algebra(output_type='clear prob')
+# ut.band_algebra(output_type='NDVI')
+# ut.clip_clear_perc(bomas_shp= r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
+#                    save_rgb=True, save_clip=False) # Bomas...
+#
+#
+# # ===================================         Download       ======================================#
+# # In case you have downloaded some images before using this script and want to save new images in the same folder,
+# # you can specify the folder by assigning a value to output_dir argument.
+# # Another easier way to do so is that you can change the work_dir and name of the folder for saving downloaded
+# # images on line 8 and line 10 in this script
+# # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
+# output_dir = r'C:\Users\ChengY\Desktop\raw'
+# ut.download_assets(output_dir=output_dir)
+#
+#
+# # ===================================         Merge        ======================================#
+# # Set input directory that includes all data to be merged
+# # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
+# input_dir = r'C:\Users\ChengY\Desktop\raw'
+# file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
+# # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
+# ut.merge(file_list=file_list)
+#
+#
+# # ===================================         Clip        ======================================#
+# # Set input directory that includes all data to be clipped
+# # the default directory is [..\merge], which is the automatically created folder for saving merged images
+# input_dir = r'C:\Users\ChengY\Desktop\merge'
+# file_list = glob("{}\\*udm2.tif".format(input_dir))
+# ut.clip(file_list=file_list)
+#
+#
+# # ===================================         Clear probability        ======================================#
+# # Set input directory
+# # the default directory is [..\clip], which is the automatically created folder for saving clipped images
+# input_dir = r'C:\Users\ChengY\Desktop\clip'
+# file_list = glob("{}\\*udm2.tif".format(input_dir))
+# ut.band_algebra(input_type='clear prob', file_list=file_list)
 
 
 # ===================================         Biomas       ======================================#
 # Clip based on percentage of clear pixels, for bomas visualization
-bomas_shp = r'D:\Kapiti\supplementary_data\Kapiti_Jun18_v2_prj.shp'
+bomas_shp = r'C:\Users\ChengY\Desktop\shp\bomas\layers\POLYGON.shp'
 clear_perc_min = 0.1
-save_rgb=True
-save_clip=False
-file_list = glob("{}\\*udm2.tif".format(r'C:\Users\ChengY\Desktop\clip'))
+save_rgb = True
+save_clip = False
+file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\Desktop\clip'))
 ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 
