@@ -621,7 +621,7 @@ class Utilities:
         '''
 
         # Preprocessing udm2 data
-        # Check exist setnull data
+        # Check existing setnull data
         exist_setnull = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
         item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
@@ -644,7 +644,7 @@ class Utilities:
                     file_list.append(j)
             # print(file_list)
 
-        # Check exist merged data
+        # Check existing merged data
         file_list_exist_sr = glob('{}\\{}*SR.tif'.format(output_dir))
         file_list_exist_udm2 = glob('{}\\{}*udm2.tif'.format(output_dir))
         date_list_exist_sr = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist_sr]))
