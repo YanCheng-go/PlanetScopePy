@@ -8,6 +8,7 @@ Contributors: Dr. Anton Vrieling
 '''
 
 import Utilities as utils
+from glob import glob
 
 # Improt class
 ut = utils.Utilities()
@@ -105,7 +106,9 @@ ut.start_up()
 # ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 # ===================================       Sketch-book      ==================================== #
-ut.download_assets()
+# ut.download_assets()
+file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'))
+ut.merge(file_list=file_list)
 
 
 

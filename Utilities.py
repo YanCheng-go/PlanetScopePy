@@ -6,6 +6,26 @@ Email: y.cheng@utwente.nl
 Contributors: Dr. Anton Vrieling
 ======================================
 '''
+'''
+Major updates
+===============================================================
+12/02/2020
+0. New preparation instruction
+1. new variables
+    - default_gdal_osgeo_dir --> the directory of osgeo folder
+    - default_process_level
+2. os.environ['PROJ_LIB'] = self.gdal_proj_path
+3. udm2_setnull()
+    - Check existing files
+4. merge()
+    - check existing merged files in the output direstory
+    - add asset_types are one of the arguments, now you can specify which asset types you want to merge...
+5. clip()
+    - check existing clipped files in the output directory
+6. asset_attrs(asset_type)
+    - change the function name from asset_suffix to asset_attrs
+    - Add data type infromation for different asset type
+'''
 
 '''
 Preparations
@@ -31,8 +51,8 @@ Preparations
     
 To do list   
 ====================================== 
-- Delete the latest file
-- clip - checking existing files
+- 3B -- as global variable -- process level
+- add asset_type in merge function
 - Compress data
 - Stack NDVI and clear prob
 - Plot time series
@@ -82,6 +102,7 @@ class Utilities:
     # Filter settings
     default_filter_items = ['date', 'cloud_cover', 'aoi']
     default_item_types = ["PSScene4Band"]
+    default_process_level = '3B'
     default_asset_types = ['analytic_sr', 'udm2']
     default_start_date = '2019-01-20'
     default_end_date = '2019-01-31'
@@ -95,9 +116,9 @@ class Utilities:
     def __init__(self, gdal_osgeo_dir=default_gdal_osgeo_dir, work_dir=default_work_dir,
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
                  api_key=default_api_key, filter_items=default_filter_items, item_types=default_item_types,
-                 asset_types=default_asset_types, start_date=default_start_date, end_date=default_end_date,
-                 cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp, rgb_composition=default_rgb_composition,
-                 dpi=default_dpi, percentile=default_percentile):
+                 process_level=default_process_level, asset_types=default_asset_types, start_date=default_start_date,
+                 end_date=default_end_date, cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp,
+                 rgb_composition=default_rgb_composition, dpi=default_dpi, percentile=default_percentile):
         '''
 
         :param gdal_osgeo_dir: string
@@ -108,6 +129,7 @@ class Utilities:
         :param api_key: string
         :param filter_items: list, a list of filter item names
         :param item_types: list, a list of item type, more info: https://developers.planet.com/docs/data/items-assets/
+        :param item_types: string, processing level
         :param asset_types: list, a list of asset type, more info: https://developers.planet.com/docs/data/psscene4band/
         :param start_date: string, start date with a format of 'YYYY-MM-DD'
         :param end_date: string, end date with a format of 'YYYY-MM-DD'
@@ -122,8 +144,10 @@ class Utilities:
         self.gdal_osgeo_dir = gdal_osgeo_dir
         self.gdal_scripts_path = gdal_osgeo_dir + '\\scripts'
         self.gdal_data_path = gdal_osgeo_dir + '\\data\\gdal'
+        self.gdal_proj_path = gdal_osgeo_dir + '\\data\\proj'
         sys.path.append(self.gdal_scripts_path)
         os.environ["GDAL_DATA"] = self.gdal_data_path
+        os.environ['PROJ_LIB'] = self.gdal_proj_path
         self.gdal_calc_path = gdal_osgeo_dir + '\\scripts\\gdal_calc.py'
         self.gdal_merge_path = gdal_osgeo_dir + '\\scripts\\gdal_merge.py'
         self.gdal_translate_path = gdal_osgeo_dir + '\\scripts\\gdal_translate.exe'
@@ -135,6 +159,7 @@ class Utilities:
         self.client = api.ClientV1(api_key=api_key)
         self.filter_items = filter_items
         self.item_types = item_types
+        self.process_level = process_level
         self.asset_types = asset_types
         self.start_date = datetime(year=int(start_date.split('-')[0]), month=int(start_date.split('-')[1]),
                                    day=int(start_date.split('-')[2]))
@@ -167,16 +192,23 @@ class Utilities:
         return aoi_geom
 
     @staticmethod
-    def asset_suffix(asset_type):
+    def asset_attrs(asset_type):
         '''
+        Attributes, such as suffix and data type, for each asset type
         :param asset_type: string, one item in the list of asset type, more info:
                             https://developers.planet.com/docs/data/psscene4band/
-        :return: string, associated suffix of each asset type
+        :return: string, associated attributes of each asset type
         '''
 
         switch = {
-            'analytic_sr': 'AnalyticMS_SR',
-            'udm2': 'udm2'
+            'analytic_sr': {
+                'suffix': 'AnalyticMS_SR',
+                'data type': 'UInt16'
+            },
+            'udm2': {
+                'suffix': 'udm2',
+                'data type': 'Byte'
+            }
         }
         return switch.get(asset_type, 'None')
 
@@ -303,7 +335,7 @@ class Utilities:
             # print(download_link)
             response = requests.get(download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_suffix(asset_type)),
+            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_attrs(asset_type)),
                       "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
@@ -326,7 +358,6 @@ class Utilities:
 
     def download_client(self, item_id, asset_type, item_type):
         '''
-
         Activate and download individual asset with specific item id and asset type
         Using Planet client, slower than using download_one()
         :param item_id: string, item id
@@ -423,7 +454,7 @@ class Utilities:
             # Download clipped asset
             response = requests.get(clip_download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_suffix(asset_type)),
+            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_attrs(asset_type)['suffix']),
                       "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
@@ -512,12 +543,11 @@ class Utilities:
                         if asset_exist is True:
                             metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
                             records_file = open(self.records_path, "a+")
-                            records_file.write('File Exists: {}_3B_{} {}\n\n'.format(item_id,
-                                                                                 self.asset_suffix(asset_type),
-                                                                                 item_type))
-                            records_file.write('Metadata for {}_3B_{} {}\n{}\n\n'.format(item_id,
-                                                                                       self.asset_suffix(asset_type),
-                                                                                       item_type, metadata))
+                            records_file.write('File Exists: {}_3B_{} {}\n\n'
+                                               .format(item_id, self.asset_attrs(asset_type)['suffix'], item_type))
+                            records_file.write('Metadata for {}_3B_{} {}\n{}\n\n'
+                                               .format(item_id, self.asset_attrs(asset_type)['suffix'],
+                                                       item_type, metadata))
             else:
                 self.download_clipped(item_id)
 
@@ -588,8 +618,23 @@ class Utilities:
                     file_list.append(j)
         else:
             file_list = [file for file in file_list if 'udm2' in file]
+        # print(file_list)
 
-        print(file_list)
+        # Check existing setnull data and remove the latest one in case it was not complete
+        item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
+        exist_setnull = list(
+            set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
+        new_setnull = [i for i in item_id_list if i not in exist_setnull]
+        if new_setnull:
+            if exist_setnull:
+                file_list_exist_setnull = glob('{}\\*setnull.tif'.format(os.path.dirname(file_list[0])))
+                latest_file = max(file_list_exist_setnull, key=os.path.getctime)
+                # Remove the latest file, in case it is not complete
+                os.remove(latest_file)
+                file_list.remove(latest_file)
+                # Add the removed one to the file list
+                new_setnull.append(latest_file.split('\\')[-1].split('_3B_')[0])
+        file_list = [file for file in file_list for i in new_setnull if i in file]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
             output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
@@ -604,11 +649,10 @@ class Utilities:
 
     def gdal_merge(self, input_path, output_path, data_type):
         '''
-        GDAL merge function
-        https://gdal.org/programs/gdal_merge.html
-        :param gdal_merge_path:
-        :param output_file_path:
-        :param input_file_path:
+        GDAL merge function. More info: https://gdal.org/programs/gdal_merge.html
+        :param output_path:
+        :param input_path:
+        :param data_type:
         :return:
         '''
 
@@ -616,21 +660,20 @@ class Utilities:
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
-    def merge(self, file_list=None):
+    def merge(self, asset_types=None, file_list=None):
         '''
         Merge images acquired in the same day with the same satellite id
-        :param file_list:
+        :param asset_types: list, list, a list of asset type
+        :param file_list: list, a list of file path
         :return:
         '''
 
-        # Preprocessing udm2 data
-        # Check existing setnull data
-        exist_setnull = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
-        item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
-        new_setnull = [i for i in item_id_list if i not in exist_setnull]
-        if len(new_setnull) != 0:
-            self.udm2_setnull(file_list=[file for file in file_list for i in new_setnull if i in file])
-        del exist_setnull, item_id_list, new_setnull
+        if asset_types is None:
+            asset_types = self.asset_types
+
+        if 'udm2' in asset_types:
+            # Preprocessing udm2 data
+            self.udm2_setnull(file_list)
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -647,25 +690,26 @@ class Utilities:
                     file_list.append(j)
             # print(file_list)
 
-        # Check existing merged data
-        file_list_exist_sr = glob('{}\\{}*SR.tif'.format(output_dir))
-        file_list_exist_udm2 = glob('{}\\{}*udm2.tif'.format(output_dir))
-        date_list_exist_sr = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist_sr]))
-        date_list_exist_udm2 = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist_udm2]))
-        date_list = list(set(date_list_exist_sr + date_list_exist_udm2))
-        del item_id_list, file_list_exist_sr, file_list_exist_udm2, date_list_exist_sr, date_list_exist_udm2
+        for asset_type in asset_types:
+            # Check existing merged data and remove the latested file in case it was not complete
+            date_list_input = list(set([file.split('\\')[-1].split('_')[0] for file in file_list if
+                                  self.asset_attrs(asset_type)['suffix'] in file]))
+            file_list_exist = glob('{}\\*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))
+            date_list_exist = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist]))
+            latest_file = max(file_list_exist, key=os.path.getctime)
+            latest_file_date = latest_file.split('\\')[-1].split('_')[0]
+            os.remove(latest_file)
+            date_list_exist.remove(latest_file_date)
+            date_list = [date for date in date_list_input if date not in date_list_exist]
 
-        for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
-            file_list_sr = glob("{}\\{}*SR.tif".format(input_dir, date))
-            file_list_udm2 = glob("{}\\{}*udm2_setnull.tif".format(input_dir, date))
-            input_path_sr = ' '.join(str(i) for i in file_list_sr)
-            input_path_udm2 = ' '.join(str(i) for i in file_list_udm2)
-            satellite_id_list = list(set([x.split('\\')[-1].split('_3B_')[0].split('_')[-1] for x in file_list_udm2]))
-            for satellite_id in satellite_id_list:
-                output_path_sr = output_dir + '\\' + date + '_' + satellite_id + '_AnalyticMS_SR.tif'
-                output_path_udm2 = output_dir + '\\' + date + '_' + satellite_id + '_udm2.tif'
-                self.gdal_merge(input_path_sr, output_path_sr, 'UInt16')
-                self.gdal_merge(input_path_udm2, output_path_udm2, 'Byte')
+            for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
+                file_list = glob("{}\\*{}.tif".format(input_dir, self.asset_attrs(asset_type)['suffix']))
+                input_path = ' '.join(str(i) for i in file_list)
+                satellite_id_list = list(set([x.split('\\')[-1].split('_3B_')[0].split('_')[-1] for x in file_list]))
+                for satellite_id in satellite_id_list:
+                    output_path_sr = output_dir + '\\' + date + '_' + \
+                                     satellite_id + '_{}.tif'.format(self.asset_attrs(asset_type)['suffix'])
+                    self.gdal_merge(input_path, output_path_sr, self.asset_attrs(asset_type)['data type'])
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
@@ -678,10 +722,11 @@ class Utilities:
     def gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type):
         '''
         GDAL clip function
-        :param input_file_path:
+        :param input_path:
         :param pixel_res:
         :param shapefile_path:
-        :param output_file_path:
+        :param data_type:
+        :param output_path:
         :return:
         '''
 
@@ -720,6 +765,7 @@ class Utilities:
     def clip(self, file_list=None):
         '''
         Clip imagery to the extent of AOI
+        :param file_list:
         :return:
         '''
 
@@ -738,13 +784,21 @@ class Utilities:
                     file_list.append(j)
             # print(file_list)
 
+        # Check existing clipped images and remove the latest file, in case it is not complete
+        file_list_exist = glob('{}\\*.tif'.format(output_dir))
+        if file_list_exist:
+            latest_file = max(file_list_exist, key=os.path.getctime)
+            os.remove(latest_file)
+            file_list_exist.remove(latest_file)
+            file_list = [file for file in file_list if file not in file_list_exist]
+
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
             output_name = input_path.split('\\')[-1]
             output_path = output_dir + '\\' + output_name
-            if 'udm2' in input_path:
-                data_type = 'Byte'
-            if 'SR' in input_path:
-                data_type = 'UInt16'
+            if self.asset_attrs('udm2')['suffix'] in input_path:
+                data_type = self.asset_attrs('udm2')['data type']
+            if self.asset_attrs('analytic_sr')['suffix'] in input_path:
+                data_type = self.asset_attrs('analytic_sr')['data type']
             self.gdal_clip(input_path, self.pixel_res(self.satellite), self.aoi_shp, output_path, data_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -820,7 +874,8 @@ class Utilities:
             else:
                 file_list = [file for file in file_list if 'SR' in file]
             for sr_path in file_list:
-                ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1].split('_Analytic_SR')[0] + '_ndvi.tif'
+                ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1].split(
+                    '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] + '_ndvi.tif'
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
             time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
@@ -862,7 +917,9 @@ class Utilities:
         Clip images to the extent of AOI.shp if only the percentage of clear pixels within the extent of AOI.shp
         higher than the threshold
         :param shapefile_path: string, file path of AOI.shp
-        :param cloud_perc_max: float, maximum percent of clear pixels
+        :param clear_perc_min: float, maximum percent of clear pixels
+        :param save_rgb:
+        :param save_clip:
         :param file_list: list, a list of udm2 images
         :return:
         '''
@@ -906,7 +963,7 @@ class Utilities:
             # analytic_sr imagery to specific folder
             if clear_perc >= clear_perc_min:
                 asset_id_list.append(asset_id)
-                asset_name = asset_id + '_' + self.asset_suffix(asset_type='analytic_sr')
+                asset_name = asset_id + '_' + self.asset_attrs(asset_type='analytic_sr')['suffix']
                 input_path = '{}\\{}.tif'.format(input_dir, asset_name)
                 if save_clip is True:
                     output_path = '{}\\{}_{}.tif'.format(output_dir, asset_name, shp_name)
