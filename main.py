@@ -15,34 +15,36 @@ from glob import glob
 ut = utils.Utilities()
 
 # ===================================          Settings        ======================================#
-# You can also change the variables namely default_XXXXXX in the Utilities.py file
-# In this case, you do not need to set these variables when you call functions in Utilities.py
-# Set environment
-ut.gdal_scripts_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts'
-ut.gdal_data_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\data\gdal'
-ut.gdal_calc_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_calc.py'
-ut.gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
-ut.gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
-# Set work directory
-ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
-# Set folders for saving different outputs
-ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw',
-                  'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
-ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
-ut.satellite = 'PS'
-ut.proj_code = 32737
+# # You can also change the variables namely default_XXXXXX in the Utilities.py file
+# # In this case, you do not need to set these variables when you call functions in Utilities.py
+# # Set environment
+# ut.gdal_scripts_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts'
+# ut.gdal_data_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\data\gdal'
+# ut.gdal_calc_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_calc.py'
+# ut.gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
+# ut.gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
+# # Set work directory
+# ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
+# # Set folders for saving different outputs
+# ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
+#                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
+# ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+# ut.satellite = 'PS'
+# ut.proj_code = 32737
+# ut.dpi = 90
+
+# Variables to be customized
 # Filter settings
 ut.filter_items = ['date', 'cloud_cover', 'aoi']
 ut.item_types = ["PSScene4Band"]
 ut.asset_types = ['analytic_sr', 'udm2']
 # Set filter
-ut.start_date = '2019-01-01'
-ut.end_date = '2019-01-31'
-ut.cloud_cover = 0.8
+ut.start_date = '2020-02-05'
+ut.end_date = '2020-02-11'
+ut.cloud_cover = 1
 ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
-ut.dpi = 90
 ut.percentile = [2, 98]
 
 
@@ -107,6 +109,9 @@ ut.start_up()
 # save_clip = False
 # file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\clip'))
 # ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
+
+# ===================================       Sketch-book      ==================================== #
+# ut.download_assets()
 
 
 

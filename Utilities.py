@@ -515,7 +515,6 @@ class Utilities:
                             records_file.write('Metadata for {}_3B_{} {}\n{}\n\n'.format(item_id,
                                                                                        self.asset_suffix(asset_type),
                                                                                        item_type, metadata))
-                            records_file.close()
             else:
                 self.download_clipped(item_id)
 
@@ -622,13 +621,13 @@ class Utilities:
         '''
 
         # Preprocessing udm2 data
-        # Remove exist setnull data from file_list
+        # Check exist setnull data
         exist_setnull = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
         item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
         if len(new_setnull) != 0:
             self.udm2_setnull(file_list=[file for file in file_list for i in new_setnull if i in file])
-        exist_setnull, item_id_list, new_setnull = None, None, None
+        del exist_setnull, item_id_list, new_setnull
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -644,7 +643,14 @@ class Utilities:
                 for j in a:
                     file_list.append(j)
             # print(file_list)
-        date_list = list(set([x.split('\\')[-1].split('_')[0] for x in file_list]))
+
+        # Check exist merged data
+        file_list_exist_sr = glob('{}\\{}*SR.tif'.format(output_dir))
+        file_list_exist_udm2 = glob('{}\\{}*udm2.tif'.format(output_dir))
+        date_list_exist_sr = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist_sr]))
+        date_list_exist_udm2 = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist_udm2]))
+        date_list = list(set(date_list_exist_sr + date_list_exist_udm2))
+        del item_id_list, file_list_exist_sr, file_list_exist_udm2, date_list_exist_sr, date_list_exist_udm2
 
         for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
             file_list_sr = glob("{}\\{}*SR.tif".format(input_dir, date))
