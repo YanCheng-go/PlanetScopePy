@@ -2,6 +2,7 @@
 ======================================
 Utilities for processing PlanetScope imagery
 Author: Yan Cheng
+Email: y.cheng@utwente.nl
 Contributors: Dr. Anton Vrieling
 ======================================
 '''
@@ -9,18 +10,30 @@ Contributors: Dr. Anton Vrieling
 '''
 Preparations
 =======================================
-0. Download Anaconda
-1. conda install rasterio
-2. conda install -c conda-forge geopandas
-3. remove gdal from site-packages
-4. remove pyproj from site-packages
-5. pip install pyproj
-6. pip install planet
-7. install gdal using the .whl file from https://www.lfd.uci.edu/~gohlke/pythonlibs/
-    pip install [PATH OF GDAL WHL FILE]
-
+1. Download Pycharm - community version 
+2. Download Preparation_for_PlanetScope_tools.zip file
+3. Installation of python 3.7.X
+    - double click python-3.7.6-amd64.exe in Preparation_for_PlanetScope_tools.zip
+    - select customize installation
+    - check [Install launcher for all users] 
+    - check [Add Python to PATH
+    - make a note of the installed location (e.g., C:\Program Files (x86)\Python37_6)
+4. Installation of required packages
+    - search and open command prompt 
+    - type command line and press enter
+        - cd [PATH OF INSTALLED PYTHON 3.7.X, WITHOUT SQUARE BRACKETS] 
+        - python -m pip install --user -r [PATH OF DOWNLOADED requirements.txt IN Preparation_for_PlanetScope_tools.zip, 
+        WITHOUT SQUARE BRACKETS]
+        - python -m pip install --user [PATH OF DOWNLOADED .WHL FILE IN Preparation_for_PlanetScope_tools.zip, WITHOUT 
+        SQUARE BRACKETS]
+    - find your installed packages here C:\\Users\[USER NAME]\AppData\Roaming\Python\Python37\site-packages
+    - make a note of the path of osgeo package in this path... it is associate to the default_gdal_osgeo_dir variable
+    
 To do list   
 ====================================== 
+- Delete the latest file
+- clip - checking existing files
+- Compress data
 - Stack NDVI and clear prob
 - Plot time series
 - Optimize for loops
@@ -39,7 +52,6 @@ from glob import glob
 import os
 from osgeo import ogr, gdal
 import rasterio
-from rasterio.plot import show
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
@@ -56,14 +68,8 @@ class Utilities:
     '''
 
     # Set environment
-    default_gdal_scripts_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts'
-    default_gdal_data_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\data\gdal'
-    sys.path.append(default_gdal_scripts_path)
-    os.environ["GDAL_DATA"] = default_gdal_data_path
-    # File path of gdal_calc.py and gdal_merge.py
-    default_gdal_calc_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_calc.py'
-    default_gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
-    default_gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
+    default_gdal_osgeo_dir = r'C:\Users\ChengY\AppData\Roaming\Python\Python37\site-packages\osgeo'
+
     # Set directories
     default_work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
@@ -86,9 +92,7 @@ class Utilities:
     default_dpi = 90
     default_percentile = [2, 98]
 
-    def __init__(self, gdal_scripts_path=default_gdal_scripts_path, gdal_data_path=default_gdal_data_path,
-                 gdal_calc_path=default_gdal_calc_path, gdal_merge_path=default_gdal_merge_path,
-                 gdal_translate_path=default_gdal_translate_path, work_dir=default_work_dir,
+    def __init__(self, gdal_osgeo_dir=default_gdal_osgeo_dir, work_dir=default_work_dir,
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
                  api_key=default_api_key, filter_items=default_filter_items, item_types=default_item_types,
                  asset_types=default_asset_types, start_date=default_start_date, end_date=default_end_date,
@@ -96,11 +100,7 @@ class Utilities:
                  dpi=default_dpi, percentile=default_percentile):
         '''
 
-        :param gdal_scripts_path: string
-        :param gdal_data_path: string
-        :param gdal_calc_path: string
-        :param gdal_merge_path: string
-        :param gdal_translate_path: string
+        :param gdal_osgeo_dir: string
         :param work_dir: string
         :param output_dirs: dictionary, the name of folder for storing different outputs
         :param satellite: string, abbreviation of satellite name, PS - PLanetScope, S2 - Sentinel-2
@@ -119,11 +119,14 @@ class Utilities:
         :param percentile: list, minimum and maximum percentile
         '''
 
-        self.gdal_scripts_path = gdal_scripts_path
-        self.gdal_data_path = gdal_data_path
-        self.gdal_calc_path = gdal_calc_path
-        self.gdal_merge_path = gdal_merge_path
-        self.gdal_translate_path = gdal_translate_path
+        self.gdal_osgeo_dir = gdal_osgeo_dir
+        self.gdal_scripts_path = gdal_osgeo_dir + '\\scripts'
+        self.gdal_data_path = gdal_osgeo_dir + '\\data\\gdal'
+        sys.path.append(self.gdal_scripts_path)
+        os.environ["GDAL_DATA"] = self.gdal_data_path
+        self.gdal_calc_path = gdal_osgeo_dir + '\\scripts\\gdal_calc.py'
+        self.gdal_merge_path = gdal_osgeo_dir + '\\scripts\\gdal_merge.py'
+        self.gdal_translate_path = gdal_osgeo_dir + '\\scripts\\gdal_translate.exe'
         self.work_dir = work_dir
         self.output_dirs = output_dirs
         self.satellite = satellite

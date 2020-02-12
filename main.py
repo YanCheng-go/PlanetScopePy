@@ -2,38 +2,32 @@
 ======================================
 Preprocessing for PlanetScope imagery
 Author: Yan Cheng
+Email:  y.cheng@gmail.com
 Contributors: Dr. Anton Vrieling
 ======================================
-change test
-
 '''
 
 import Utilities as utils
-from glob import glob
 
 # Improt class
 ut = utils.Utilities()
 
 # ===================================          Settings        ======================================#
-# # You can also change the variables namely default_XXXXXX in the Utilities.py file
-# # In this case, you do not need to set these variables when you call functions in Utilities.py
-# # Set environment
-# ut.gdal_scripts_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts'
-# ut.gdal_data_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\data\gdal'
-# ut.gdal_calc_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_calc.py'
-# ut.gdal_merge_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\scripts\gdal_merge.py'
-# ut.gdal_translate_path = r'C:\Users\ChengY\AppData\Local\Continuum\anaconda3\Lib\site-packages\osgeo\gdal_translate.exe'
-# # Set work directory
-# ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
-# # Set folders for saving different outputs
-# ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
-#                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
-# ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
-# ut.satellite = 'PS'
-# ut.proj_code = 32737
-# ut.dpi = 90
+# You can also change the variables namely default_XXXXXX in the Utilities.py file
+# In this case, you do not need to set these variables when you call functions in Utilities.py
+# Set environment
+ut.gdal_osgeo_dir = r'C:\Users\ChengY\AppData\Roaming\Python\Python37\site-packages\osgeo'
 
-# Variables to be customized
+# Set work directory
+ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
+# Set folders for saving different outputs
+ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
+                  'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
+ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+ut.satellite = 'PS'
+ut.proj_code = 32737
+ut.dpi = 90
+
 # Filter settings
 ut.filter_items = ['date', 'cloud_cover', 'aoi']
 ut.item_types = ["PSScene4Band"]
@@ -98,7 +92,7 @@ ut.start_up()
 # # the default directory is [..\clip], which is the automatically created folder for saving clipped images
 # input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\clip'
 # file_list = glob("{}\\*udm2.tif".format(input_dir))
-# ut.band_algebra(input_type='clear prob', file_list=file_list)
+# ut.band_algebra(output_type='clear prob', file_list=file_list)
 
 
 # # ===================================         Bomas       ======================================#
@@ -111,7 +105,7 @@ ut.start_up()
 # ut.clip_clear_perc(bomas_shp, clear_perc_min, save_rgb, save_clip, file_list)
 
 # ===================================       Sketch-book      ==================================== #
-# ut.download_assets()
+ut.download_assets()
 
 
 
