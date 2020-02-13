@@ -2,7 +2,7 @@
 ======================================
 Preprocessing for PlanetScope imagery
 Author: Yan Cheng
-Email:  y.cheng@gmail.com
+Email:  y.cheng@utwente.nl
 Contributors: Dr. Anton Vrieling
 ======================================
 '''
