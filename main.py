@@ -43,7 +43,6 @@ ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color compositio
 ut.percentile = [2, 98]
 
 
-
 # ===================================       Set up everything          ======================================#
 # Create default folders and execution track file
 ut.start_up()
@@ -107,8 +106,8 @@ ut.start_up()
 
 # ===================================       Sketch-book      ==================================== #
 # ut.download_assets()
-file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'))
-ut.merge(file_list=file_list)
+# file_list = glob("{}\\*.tif".format(r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\merge'))
+# ut.clip(file_list=file_list)
 
 
 

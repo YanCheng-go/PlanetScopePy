@@ -19,7 +19,6 @@ Major updates
     - Check existing files
 4. merge()
     - check existing merged files in the output direstory
-    - add asset_types are one of the arguments, now you can specify which asset types you want to merge...
 5. clip()
     - check existing clipped files in the output directory
 6. asset_attrs(asset_type)
@@ -50,9 +49,10 @@ Preparations
     - make a note of the path of osgeo package in this path... it is associate to the default_gdal_osgeo_dir variable
     
 To do list   
-====================================== 
-- 3B -- as global variable -- process level
-- add asset_type in merge function
+========================================================== 
+- Check existing for band_algebra() and clip_clear_perc()
+- retrieve existing... function
+- download_asset asset_type
 - Compress data
 - Stack NDVI and clear prob
 - Plot time series
@@ -335,8 +335,8 @@ class Utilities:
             # print(download_link)
             response = requests.get(download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_attrs(asset_type)),
-                      "wb") as handle:
+            with open(output_dir + '\\' + '{}_{}_{}.tif'.format(item_id, self.process_level,
+                                                                self.asset_attrs(asset_type)), "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
                         handle.write(data)
@@ -454,7 +454,7 @@ class Utilities:
             # Download clipped asset
             response = requests.get(clip_download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_3B_{}.tif'.format(item_id, self.asset_attrs(asset_type)['suffix']),
+            with open(output_dir + '\\' + '{}_{}_{}.tif'.format(item_id, self.process_level, self.asset_attrs(asset_type)['suffix']),
                       "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
@@ -475,8 +475,7 @@ class Utilities:
         records_file.close()
         return asset_exist
 
-    @staticmethod
-    def retrieve_exist_files(dir):
+    def retrieve_exist_files(self, dir):
         '''
         Retrieve item id of existing assests in a folder
         :param dir: string, the path of a folder contains downloaded assests
@@ -485,8 +484,8 @@ class Utilities:
 
         file_list_udm2 = glob('{}\\*udm2.tif'.format(dir))
         file_list_sr = glob('{}\\*SR.tif'.format(dir))
-        id_list_exist_udm2 = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_udm2]
-        id_list_exist_sr = [i.split('\\')[-1].split('_3B_')[0] for i in file_list_sr]
+        id_list_exist_udm2 = [i.split('\\')[-1].split('_{}_'.format(self.process_level))[0] for i in file_list_udm2]
+        id_list_exist_sr = [i.split('\\')[-1].split('_{}_'.format(self.process_level))[0] for i in file_list_sr]
         if len(id_list_exist_udm2) >= len(id_list_exist_sr):
             id_list_exist = id_list_exist_sr
         else:
@@ -543,10 +542,12 @@ class Utilities:
                         if asset_exist is True:
                             metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
                             records_file = open(self.records_path, "a+")
-                            records_file.write('File Exists: {}_3B_{} {}\n\n'
-                                               .format(item_id, self.asset_attrs(asset_type)['suffix'], item_type))
-                            records_file.write('Metadata for {}_3B_{} {}\n{}\n\n'
-                                               .format(item_id, self.asset_attrs(asset_type)['suffix'],
+                            records_file.write('File Exists: {}_{}_{} {}\n\n'
+                                               .format(item_id, self.process_level,
+                                                       self.asset_attrs(asset_type)['suffix'], item_type))
+                            records_file.write('Metadata for {}_{}_{} {}\n{}\n\n'
+                                               .format(item_id, self.process_level,
+                                                       self.asset_attrs(asset_type)['suffix'],
                                                        item_type, metadata))
             else:
                 self.download_clipped(item_id)
@@ -621,9 +622,11 @@ class Utilities:
         # print(file_list)
 
         # Check existing setnull data and remove the latest one in case it was not complete
-        item_id_list = list(set([file.split('\\')[-1].split('_3B_')[0] for file in file_list]))
+        item_id_list = list(set([file.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
+                                 for file in file_list]))
         exist_setnull = list(
-            set([file.split('\\')[-1].split('_3B_')[0] for file in file_list if 'setnull' in file]))
+            set([file.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
+                 for file in file_list if 'setnull' in file]))
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
         if new_setnull:
             if exist_setnull:
@@ -633,7 +636,7 @@ class Utilities:
                 os.remove(latest_file)
                 file_list.remove(latest_file)
                 # Add the removed one to the file list
-                new_setnull.append(latest_file.split('\\')[-1].split('_3B_')[0])
+                new_setnull.append(latest_file.split('\\')[-1].split('_{}_'.format(self.process_level))[0])
         file_list = [file for file in file_list for i in new_setnull if i in file]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
@@ -660,7 +663,7 @@ class Utilities:
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
-    def merge(self, asset_types=None, file_list=None):
+    def merge(self, file_list=None):
         '''
         Merge images acquired in the same day with the same satellite id
         :param asset_types: list, list, a list of asset type
@@ -668,12 +671,8 @@ class Utilities:
         :return:
         '''
 
-        if asset_types is None:
-            asset_types = self.asset_types
-
-        if 'udm2' in asset_types:
-            # Preprocessing udm2 data
-            self.udm2_setnull(file_list)
+        # Preprocessing udm2 data
+        self.udm2_setnull(file_list)
 
         print('Start to merge images collected in the same day on the same orbit :)')
         records_file = open(self.records_path, "a+")
@@ -690,26 +689,32 @@ class Utilities:
                     file_list.append(j)
             # print(file_list)
 
-        for asset_type in asset_types:
+        for asset_type in self.asset_types:
+            date_list = list(set([file.split('\\')[-1].split('_')[0]
+                                  for file in file_list if self.asset_attrs(asset_type)['suffix'] in file]))
             # Check existing merged data and remove the latested file in case it was not complete
-            date_list_input = list(set([file.split('\\')[-1].split('_')[0] for file in file_list if
-                                  self.asset_attrs(asset_type)['suffix'] in file]))
             file_list_exist = glob('{}\\*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))
-            date_list_exist = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist]))
-            latest_file = max(file_list_exist, key=os.path.getctime)
-            latest_file_date = latest_file.split('\\')[-1].split('_')[0]
-            os.remove(latest_file)
-            date_list_exist.remove(latest_file_date)
-            date_list = [date for date in date_list_input if date not in date_list_exist]
+            if file_list_exist:
+                date_list_exist = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist]))
+                latest_file = max(file_list_exist, key=os.path.getctime)
+                latest_file_date = latest_file.split('\\')[-1].split('_')[0]
+                os.remove(latest_file)
+                date_list_exist.remove(latest_file_date)
+                date_list = [date for date in date_list if date not in date_list_exist]
 
             for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
-                file_list = glob("{}\\*{}.tif".format(input_dir, self.asset_attrs(asset_type)['suffix']))
-                input_path = ' '.join(str(i) for i in file_list)
-                satellite_id_list = list(set([x.split('\\')[-1].split('_3B_')[0].split('_')[-1] for x in file_list]))
+                if asset_type == 'udm2':
+                    file_list_new = glob("{}\\{}*{}_setnull.tif"
+                                         .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
+                else:
+                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
+                input_path = ' '.join(str(i) for i in file_list_new)
+                satellite_id_list = list(set([x.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
+                                             .split('_')[-1] for x in file_list_new]))
                 for satellite_id in satellite_id_list:
-                    output_path_sr = output_dir + '\\' + date + '_' + \
+                    output_path = output_dir + '\\' + date + '_' + \
                                      satellite_id + '_{}.tif'.format(self.asset_attrs(asset_type)['suffix'])
-                    self.gdal_merge(input_path, output_path_sr, self.asset_attrs(asset_type)['data type'])
+                    self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'])
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
@@ -948,6 +953,7 @@ class Utilities:
             asset_id = asset_name.split('_udm2')[0]
             # Clip udm2 to the extent of bomas AOI.shp and save in memory
             vsimem_path = '/vsimem/' + asset_name + '.tif'
+            print(vsimem_path)
             self.gdal_clip(file, pixel_res, shapefile_path, vsimem_path, data_type='Byte')
             raster = gdal.Open(vsimem_path)
             # Convert the first band (clear) to numpy array
@@ -967,26 +973,32 @@ class Utilities:
                 input_path = '{}\\{}.tif'.format(input_dir, asset_name)
                 if save_clip is True:
                     output_path = '{}\\{}_{}.tif'.format(output_dir, asset_name, shp_name)
-                    self.gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type='UInt16')
+                    try:
+                        self.gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type='UInt16')
+                    except:
+                        pass
                 if save_rgb is True:
                     vsimem_path = '/vsimem/{}.tif'.format(asset_name)
-                    self.gdal_clip(input_path, pixel_res, shapefile_path, vsimem_path, data_type='UInt16')
-                    with rasterio.open(vsimem_path) as raster:
-                        # Convert to numpy arrays
-                        nir = raster.read(self.rgb_composition['red'])
-                        red = raster.read(self.rgb_composition['green'])
-                        green = raster.read(self.rgb_composition['blue'])
-                        # Normalize band DN
-                        nir_norm = self.normalize(nir, self.percentile)
-                        red_norm = self.normalize(red, self.percentile)
-                        green_norm = self.normalize(green, self.percentile)
-                        # Stack bands
-                        nrg = np.dstack((nir_norm, red_norm, green_norm))
-                        # View the color composite
-                        fig = plt.figure()
-                        plt.imshow(nrg)
-                        plot_path = '{}\\{}_{}_thumbnail.png'.format(output_dir, asset_name, shp_name)
-                        fig.savefig(plot_path, dpi=self.dpi)
+                    try:
+                        self.gdal_clip(input_path, pixel_res, shapefile_path, vsimem_path, data_type='UInt16')
+                        with rasterio.open(vsimem_path) as raster:
+                            # Convert to numpy arrays
+                            nir = raster.read(self.rgb_composition['red'])
+                            red = raster.read(self.rgb_composition['green'])
+                            green = raster.read(self.rgb_composition['blue'])
+                            # Normalize band DN
+                            nir_norm = self.normalize(nir, self.percentile)
+                            red_norm = self.normalize(red, self.percentile)
+                            green_norm = self.normalize(green, self.percentile)
+                            # Stack bands
+                            nrg = np.dstack((nir_norm, red_norm, green_norm))
+                            # View the color composite
+                            fig = plt.figure()
+                            plt.imshow(nrg)
+                            plot_path = '{}\\{}_{}_thumbnail.png'.format(output_dir, asset_name, shp_name)
+                            fig.savefig(plot_path, dpi=self.dpi)
+                    except:
+                        pass
 
         records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
