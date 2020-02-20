@@ -9,6 +9,13 @@ Contributors: Dr. Anton Vrieling
 '''
 Major updates
 ===============================================================
+13/02/2020
+- remove retrieve_exist_files()
+- change the code for checking existing files in clip()
+- check existing file for band_algebra()
+- add a global variable remove_exist, set this variable as True if you killed a process manually and need to rerun it. 
+In this case the latest generated file will be removed because most likely the latest one is not complete...
+
 12/02/2020
 0. New preparation instruction
 1. new variables
@@ -50,9 +57,7 @@ Preparations
     
 To do list   
 ========================================================== 
-- Check existing for band_algebra() and clip_clear_perc()
-- retrieve existing... function
-- download_asset asset_type
+- Check existing clip_clear_perc()
 - Compress data
 - Stack NDVI and clear prob
 - Plot time series
@@ -112,13 +117,15 @@ class Utilities:
     default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2} # False color composition for PlanetScope images
     default_dpi = 90
     default_percentile = [2, 98]
+    default_remove_latest = True
 
     def __init__(self, gdal_osgeo_dir=default_gdal_osgeo_dir, work_dir=default_work_dir,
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
                  api_key=default_api_key, filter_items=default_filter_items, item_types=default_item_types,
                  process_level=default_process_level, asset_types=default_asset_types, start_date=default_start_date,
                  end_date=default_end_date, cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp,
-                 rgb_composition=default_rgb_composition, dpi=default_dpi, percentile=default_percentile):
+                 rgb_composition=default_rgb_composition, dpi=default_dpi, percentile=default_percentile,
+                 remove_latest=default_remove_latest):
         '''
 
         :param gdal_osgeo_dir: string
@@ -129,7 +136,7 @@ class Utilities:
         :param api_key: string
         :param filter_items: list, a list of filter item names
         :param item_types: list, a list of item type, more info: https://developers.planet.com/docs/data/items-assets/
-        :param item_types: string, processing level
+        :param process_level: string, processing level
         :param asset_types: list, a list of asset type, more info: https://developers.planet.com/docs/data/psscene4band/
         :param start_date: string, start date with a format of 'YYYY-MM-DD'
         :param end_date: string, end date with a format of 'YYYY-MM-DD'
@@ -139,6 +146,8 @@ class Utilities:
                                 PlanetScope images
         :param dpi: int, dpi of saved plot
         :param percentile: list, minimum and maximum percentile
+        :param remove_latest: boolean, true means remove the latest file in the folder because the process was killed
+                            manually and the latest file is not complete. If false, the latest file will not be removed.
         '''
 
         self.gdal_osgeo_dir = gdal_osgeo_dir
@@ -170,6 +179,7 @@ class Utilities:
         self.rgb_composition = rgb_composition
         self.dpi = dpi
         self.percentile = percentile
+        self.remove_latest = remove_latest
         self.records_path = None # File path of execution track document
         self.id_list_download = None # a list of item id which will be downloaded
 
@@ -475,24 +485,6 @@ class Utilities:
         records_file.close()
         return asset_exist
 
-    def retrieve_exist_files(self, dir):
-        '''
-        Retrieve item id of existing assests in a folder
-        :param dir: string, the path of a folder contains downloaded assests
-        :return: id_list_exist, list, id list of existing items in the folder
-        '''
-
-        file_list_udm2 = glob('{}\\*udm2.tif'.format(dir))
-        file_list_sr = glob('{}\\*SR.tif'.format(dir))
-        id_list_exist_udm2 = [i.split('\\')[-1].split('_{}_'.format(self.process_level))[0] for i in file_list_udm2]
-        id_list_exist_sr = [i.split('\\')[-1].split('_{}_'.format(self.process_level))[0] for i in file_list_sr]
-        if len(id_list_exist_udm2) >= len(id_list_exist_sr):
-            id_list_exist = id_list_exist_sr
-        else:
-            id_list_exist = id_list_exist_udm2
-
-        return id_list_exist
-
     def download_assets(self, clipped=None, output_dir=None):
         '''
         Download all required assets
@@ -522,22 +514,19 @@ class Utilities:
         res = self.client.quick_search(req)
         # List id of all items in the search result
         id_list_search = [i['id'] for i in res.items_iter(250)]
-        # Retrieve id of existing assets in the folder used to save all downloaded assets
-        if output_dir is None:
-            output_dir = self.work_dir + '\\' + self.output_dirs['raw']
-            id_list_exist = self.retrieve_exist_files(output_dir)
-        else:
-            id_list_exist = self.retrieve_exist_files(output_dir)
-        # List id of all items to be downloaded
-        self.id_list_download = [i for i in id_list_search if i not in id_list_exist]
-        # print(self.id_list_download)
 
-        # Download (clipped) assets based on their item id
-        for item_id in tqdm(self.id_list_download, total=len(self.id_list_download), unit="item",
-                            desc='Downloading assets'):
-            if not clipped:
-                for item_type in self.item_types:
-                    for asset_type in self.asset_types:
+        for asset_type in self.asset_types:
+            # Retrieve id of existing assets in the folder used to save all downloaded assets
+            file_list = glob('{}\\*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))
+            id_list_exist = [i.split('\\')[-1].split('_{}_'.format(self.process_level))[0] for i in file_list]
+            # List id of all items to be downloaded
+            self.id_list_download = [i for i in id_list_search if i not in id_list_exist]
+            # print(self.id_list_download)
+            # Download (clipped) assets based on their item id
+            for item_id in tqdm(self.id_list_download, total=len(self.id_list_download), unit="item",
+                                desc='Downloading assets'):
+                if not clipped:
+                    for item_type in self.item_types:
                         asset_exist = self.download_one(item_id, asset_type, item_type)
                         if asset_exist is True:
                             metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
@@ -549,8 +538,8 @@ class Utilities:
                                                .format(item_id, self.process_level,
                                                        self.asset_attrs(asset_type)['suffix'],
                                                        item_type, metadata))
-            else:
-                self.download_clipped(item_id)
+                else:
+                    self.download_clipped(item_id)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish downloading assets :)')
@@ -631,10 +620,11 @@ class Utilities:
         if new_setnull:
             if exist_setnull:
                 file_list_exist_setnull = glob('{}\\*setnull.tif'.format(os.path.dirname(file_list[0])))
-                latest_file = max(file_list_exist_setnull, key=os.path.getctime)
-                # Remove the latest file, in case it is not complete
-                os.remove(latest_file)
-                file_list.remove(latest_file)
+                if self.remove_latest is True:
+                    latest_file = max(file_list_exist_setnull, key=os.path.getctime)
+                    # Remove the latest file, in case it is not complete
+                    os.remove(latest_file)
+                    file_list.remove(latest_file)
                 # Add the removed one to the file list
                 new_setnull.append(latest_file.split('\\')[-1].split('_{}_'.format(self.process_level))[0])
         file_list = [file for file in file_list for i in new_setnull if i in file]
@@ -696,10 +686,11 @@ class Utilities:
             file_list_exist = glob('{}\\*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))
             if file_list_exist:
                 date_list_exist = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist]))
-                latest_file = max(file_list_exist, key=os.path.getctime)
-                latest_file_date = latest_file.split('\\')[-1].split('_')[0]
-                os.remove(latest_file)
-                date_list_exist.remove(latest_file_date)
+                if self.remove_latest is True:
+                    latest_file = max(file_list_exist, key=os.path.getctime)
+                    latest_file_date = latest_file.split('\\')[-1].split('_')[0]
+                    os.remove(latest_file)
+                    date_list_exist.remove(latest_file_date)
                 date_list = [date for date in date_list if date not in date_list_exist]
 
             for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
@@ -792,9 +783,10 @@ class Utilities:
         # Check existing clipped images and remove the latest file, in case it is not complete
         file_list_exist = glob('{}\\*.tif'.format(output_dir))
         if file_list_exist:
-            latest_file = max(file_list_exist, key=os.path.getctime)
-            os.remove(latest_file)
-            file_list_exist.remove(latest_file)
+            if self.remove_latest is True:
+                latest_file = max(file_list_exist, key=os.path.getctime)
+                os.remove(latest_file)
+                file_list_exist.remove(latest_file)
             file_list = [file for file in file_list if file not in file_list_exist]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
@@ -853,17 +845,31 @@ class Utilities:
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         if output_type == 'clear prob':
+            asset_type = 'udm2'
             clear_prob_dir = self.work_dir + '\\' + self.output_dirs['clear prob']
             if file_list is None:
                 file_list = []
                 for i in self.id_list_download:
-                    a = glob("{}\\{}*udm2.tif".format(input_dir, i))
+                    a = glob("{}\\{}*{}.tif".format(input_dir, i, self.asset_attrs('udm2')['suffix']))
                     for j in a:
                         file_list.append(j)
             else:
-                file_list = [file for file in file_list if 'udm2' in file]
+                file_list = [file for file in file_list if self.asset_attrs('udm2')['suffix'] in file]
+
+            # Check existing clipped images and remove the latest file, in case it is not complete
+            file_list_exist = glob('{}\\*.tif'.format(clear_prob_dir))
+            if file_list_exist:
+                item_id_list_exist = [file.split('\\')[0].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0]
+                                      for file in file_list_exist]
+                if self.remove_latest is True:
+                    latest_file = max(file_list_exist, key=os.path.getctime)
+                    os.remove(latest_file)
+                    file_list_exist.remove(latest_file)
+                file_list = [file for file in file_list if file.split('\\')[0].split(
+                    '_{}'.format(self.asset_attrs(asset_type)['suffix']))[0] not in item_id_list_exist]
+
             for udm2_path in file_list:
-                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_udm2')[0] + '_clearprob.tif'
+                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_{}'.format(self.asset_attrs('udm2')['suffix']))[0] + '_clearprob.tif'
                 self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + clear_prob_dir)
@@ -946,6 +952,19 @@ class Utilities:
             file_list = glob('{}\\{}\\*udm2.tif'.format(self.work_dir, self.output_dirs['clip']))
         else:
             file_list = [file for file in file_list if 'udm2' in file]
+
+        # Check existing file
+        # if save_clip is True:
+        #     file_list_exist = glob('{}\\*.tif'.format(output_dir))
+        #     if file_list_exist:
+        #         item_id_list_exist = [file.split('\\')[0].split('_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0]
+        #                               for file in file_list_exist]
+        #         if self.remove_latest is True:
+        #             latest_file = max(file_list_exist, key=os.path.getctime)
+        #             os.remove(latest_file)
+        #             file_list_exist.remove(latest_file)
+        #         file_list = [file for file in file_list if file.split('\\')[0].split(
+        #             '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] not in item_id_list_exist]
 
         asset_id_list = []
         for file in file_list:

@@ -32,6 +32,7 @@ ut.dpi = 90
 # Filter settings
 ut.filter_items = ['date', 'cloud_cover', 'aoi']
 ut.item_types = ["PSScene4Band"]
+ut.process_level = '3B'
 ut.asset_types = ['analytic_sr', 'udm2']
 # Set filter
 ut.start_date = '2020-02-05'
@@ -41,6 +42,8 @@ ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapit
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.percentile = [2, 98]
+ut.remove_latest = True # Set as True only when you killed the previous run and want to rerun it. In this case,
+# the lasted file will be removed in case it is not a complete file...
 
 
 # ===================================       Set up everything          ======================================#
