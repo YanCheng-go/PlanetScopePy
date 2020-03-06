@@ -42,7 +42,7 @@ ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapit
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.percentile = [2, 98]
-ut.remove_latest = True # Set as True only when you killed the previous run and want to rerun it. In this case,
+ut.remove_latest = False # Set as True only when you killed the previous run and want to rerun it. In this case,
 # the lasted file will be removed in case it is not a complete file...
 
 
