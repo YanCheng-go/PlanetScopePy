@@ -117,7 +117,7 @@ class Utilities:
     default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2} # False color composition for PlanetScope images
     default_dpi = 90
     default_percentile = [2, 98]
-    default_remove_latest = True
+    default_remove_latest = False
 
     def __init__(self, gdal_osgeo_dir=default_gdal_osgeo_dir, work_dir=default_work_dir,
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
@@ -346,7 +346,7 @@ class Utilities:
             response = requests.get(download_url, stream=True)
             total_length = response.headers.get('content-length')
             with open(output_dir + '\\' + '{}_{}_{}.tif'.format(item_id, self.process_level,
-                                                                self.asset_attrs(asset_type)), "wb") as handle:
+                                                                self.asset_attrs(asset_type)['suffix']), "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
                         handle.write(data)
