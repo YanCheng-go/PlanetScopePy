@@ -859,13 +859,13 @@ class Utilities:
             # Check existing clipped images and remove the latest file, in case it is not complete
             file_list_exist = glob('{}\\*.tif'.format(clear_prob_dir))
             if file_list_exist:
-                item_id_list_exist = [file.split('\\')[0].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0]
+                item_id_list_exist = [file.split('\\')[-1].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0]
                                       for file in file_list_exist]
                 if self.remove_latest is True:
                     latest_file = max(file_list_exist, key=os.path.getctime)
                     os.remove(latest_file)
                     file_list_exist.remove(latest_file)
-                file_list = [file for file in file_list if file.split('\\')[0].split(
+                file_list = [input_dir + file for file in file_list if file.split('\\')[-1].split(
                     '_{}'.format(self.asset_attrs(asset_type)['suffix']))[0] not in item_id_list_exist]
 
             for udm2_path in file_list:
@@ -957,13 +957,13 @@ class Utilities:
         # if save_clip is True:
         #     file_list_exist = glob('{}\\*.tif'.format(output_dir))
         #     if file_list_exist:
-        #         item_id_list_exist = [file.split('\\')[0].split('_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0]
+        #         item_id_list_exist = [file.split('\\')[-1].split('_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0]
         #                               for file in file_list_exist]
         #         if self.remove_latest is True:
         #             latest_file = max(file_list_exist, key=os.path.getctime)
         #             os.remove(latest_file)
         #             file_list_exist.remove(latest_file)
-        #         file_list = [file for file in file_list if file.split('\\')[0].split(
+        #         file_list = [input_dir + file for file in file_list if file.split('\\')[-1].split(
         #             '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] not in item_id_list_exist]
 
         asset_id_list = []
