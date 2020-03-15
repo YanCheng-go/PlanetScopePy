@@ -972,7 +972,7 @@ class Utilities:
             asset_id = asset_name.split('_udm2')[0]
             # Clip udm2 to the extent of bomas AOI.shp and save in memory
             vsimem_path = '/vsimem/' + asset_name + '.tif'
-            print(vsimem_path)
+            # print(vsimem_path)
             self.gdal_clip(file, pixel_res, shapefile_path, vsimem_path, data_type='Byte')
             raster = gdal.Open(vsimem_path)
             # Convert the first band (clear) to numpy array
