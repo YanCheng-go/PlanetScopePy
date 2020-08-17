@@ -76,7 +76,7 @@ ut.start_up()
 # Set input directory that includes all data to be merged
 # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
 input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
-file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
+file_list = glob("{}\\*AnalyticMS_SR.tif".format(input_dir)) # only for udm2
 # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
 ut.merge(file_list=file_list)
 #
