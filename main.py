@@ -20,9 +20,9 @@ ut = utils.Utilities()
 ut.gdal_osgeo_dir = r'C:\Python37\Anaconda3\Lib\site-packages\osgeo'
 
 # Set work directory
-ut.work_dir = r'D:\IMAGES\PlanetScope\Kapiti-Kenya'
+ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
 # Set folders for saving different outputs
-ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
+ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge_test',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
 ut.api_key = "e912e7e40d4d4c92bd6cbdffef89b76c"  #"9cada8bc134546fe9c1b8bce5b71860f"
 ut.satellite = 'PS'
@@ -35,9 +35,9 @@ ut.item_types = ["PSScene4Band"]
 ut.asset_types = ['analytic_sr', 'udm2']
 # Set filter
 ut.start_date = '2020-02-05'
-ut.end_date = '2020-02-11'
+ut.end_date = '2020-02-6'
 ut.cloud_cover = 1
-ut.aoi_shp = r'D:\DATA\Kapiti\Kapiti_Jun18_v2_prj.shp'
+ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.percentile = [2, 98]
@@ -73,12 +73,12 @@ ut.start_up()
 #
 #
 # # ===================================         Merge        ======================================#
-# # Set input directory that includes all data to be merged
-# # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
-# file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
-# # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
-# ut.merge(file_list=file_list)
+# Set input directory that includes all data to be merged
+# the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
+input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
+file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
+# file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
+ut.merge(file_list=file_list)
 #
 #
 # # ===================================         Clip        ======================================#

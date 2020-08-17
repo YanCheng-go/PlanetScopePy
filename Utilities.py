@@ -698,13 +698,17 @@ class Utilities:
                     file_list_new = glob("{}\\{}*{}_setnull.tif"
                                          .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
                 else:
-                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
-                input_path = ' '.join(str(i) for i in file_list_new)
+                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date,
+                                                                self.asset_attrs(asset_type)['suffix']))
+                # input_path = ' '.join(str(i) for i in file_list_new)
                 satellite_id_list = list(set([x.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
                                              .split('_')[-1] for x in file_list_new]))
                 for satellite_id in satellite_id_list:
-                    output_path = output_dir + '\\' + date + '_' + \
-                                     satellite_id + '_{}.tif'.format(self.asset_attrs(asset_type)['suffix'])
+                    input_file_list = glob("{}\\{}*{}_{}*.tif".format(input_dir, date, satellite_id,
+                                                                      self.process_level))
+                    input_path = ' '.join(str(i) for i in input_file_list)
+                    output_path = output_dir + '\\' + date + '_' + satellite_id + '_{}.tif'.format(
+                        self.asset_attrs(asset_type)['suffix'])
                     self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'])
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
