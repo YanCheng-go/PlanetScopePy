@@ -17,14 +17,14 @@ ut = utils.Utilities()
 # You can also change the variables namely default_XXXXXX in the Utilities.py file
 # In this case, you do not need to set these variables when you call functions in Utilities.py
 # Set environment
-ut.gdal_osgeo_dir = r'C:\Users\ChengY\AppData\Roaming\Python\Python37\site-packages\osgeo'
+ut.gdal_osgeo_dir = r'C:\Python37\Anaconda3\Lib\site-packages\osgeo'
 
 # Set work directory
 ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
 # Set folders for saving different outputs
-ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
+ut.output_dirs = {'raw': 'raw_clip_test', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge_clip_test',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
-ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+ut.api_key = "e912e7e40d4d4c92bd6cbdffef89b76c"  #"9cada8bc134546fe9c1b8bce5b71860f"
 ut.satellite = 'PS'
 ut.proj_code = 32737
 ut.dpi = 90
@@ -32,11 +32,10 @@ ut.dpi = 90
 # Filter settings
 ut.filter_items = ['date', 'cloud_cover', 'aoi']
 ut.item_types = ["PSScene4Band"]
-ut.process_level = '3B'
-ut.asset_types = ['analytic_sr', 'udm2']
+ut.asset_types = ['analytic_sr_clip', 'udm2_clip'] # download() cannot be used for on-the-fly clipped assets (with asset_type named as ['analytic_sr_clip', 'udm2_clip'])
 # Set filter
 ut.start_date = '2020-02-05'
-ut.end_date = '2020-02-11'
+ut.end_date = '2020-02-6'
 ut.cloud_cover = 1
 ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
 # Settings for raster visualization
@@ -74,12 +73,12 @@ ut.start_up()
 #
 #
 # # ===================================         Merge        ======================================#
-# # Set input directory that includes all data to be merged
-# # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
-# file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
-# # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
-# ut.merge(file_list=file_list)
+# Set input directory that includes all data to be merged
+# the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
+input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw_online'
+file_list = glob("{}\\*udm2_clip*.tif".format(input_dir)) #### The * after udm2_clip can avoid repeating set_null process if it has been down
+# only for udm2_clip # for checking existing setnull file, better to write as "udm2_clip*" instead of udm2_clip... I mean include set_null file as well
+ut.merge(file_list=file_list)
 #
 #
 # # ===================================         Clip        ======================================#

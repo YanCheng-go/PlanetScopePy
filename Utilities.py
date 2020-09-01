@@ -183,6 +183,9 @@ class Utilities:
         self.records_path = None # File path of execution track document
         self.id_list_download = None # a list of item id which will be downloaded
 
+        self.analytic_sr_name = [x for x in self.asset_types if 'analytic_sr' in x]
+        self.udm2_name = [x for x in self.asset_types if 'udm2' in x]
+
     def shp_to_json(self):
         '''
         Convert AOI shapefile to json format that is required for retrieve imagery for specific location
@@ -218,7 +221,15 @@ class Utilities:
             'udm2': {
                 'suffix': 'udm2',
                 'data type': 'Byte'
-            }
+            },
+            'analytic_sr_clip': {
+                'suffix': 'AnalyticMS_SR_clip',
+                'data type': 'UInt16'
+            },
+            'udm2_clip': {
+                'suffix': 'udm2_clip',
+                'data type': 'Byte'
+            } # clipped ones need to be downloaded from the plant explorer manually
         }
         return switch.get(asset_type, 'None')
 
@@ -603,7 +614,7 @@ class Utilities:
         if file_list is None:
             file_list = []
             for i in self.id_list_download:
-                a = glob("{}\\{}*udm2.tif".format(input_dir, i))
+                a = glob("{}\\{}*{}.tif".format(input_dir, i, self.udm2_name[0]))
                 for j in a:
                     file_list.append(j)
         else:
@@ -615,7 +626,7 @@ class Utilities:
                                  for file in file_list]))
         exist_setnull = list(
             set([file.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
-                 for file in file_list if 'setnull' in file]))
+                 for file in file_list if 'setnull' in file])) # when the user defined file list does not contain _setnull file, this existing checking does not work...
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
         if new_setnull:
             if exist_setnull:
@@ -694,17 +705,23 @@ class Utilities:
                 date_list = [date for date in date_list if date not in date_list_exist]
 
             for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
-                if asset_type == 'udm2':
+                if 'udm2' in asset_type:
                     file_list_new = glob("{}\\{}*{}_setnull.tif"
                                          .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
                 else:
-                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
-                input_path = ' '.join(str(i) for i in file_list_new)
+                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date,
+                                                                self.asset_attrs(asset_type)['suffix']))
+
                 satellite_id_list = list(set([x.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
                                              .split('_')[-1] for x in file_list_new]))
+
                 for satellite_id in satellite_id_list:
-                    output_path = output_dir + '\\' + date + '_' + \
-                                     satellite_id + '_{}.tif'.format(self.asset_attrs(asset_type)['suffix'])
+                    input_file_list = [file_path for file_path in file_list_new
+                                       if '_{}_{}_'.format(satellite_id, self.process_level) in file_path]
+                    input_path = ' '.join(str(i) for i in input_file_list)
+                    # print(input_path)
+                    output_path = output_dir + '\\' + date + '_' + satellite_id + '_{}.tif'.format(
+                        self.asset_attrs(asset_type)['suffix'])
                     self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'])
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -792,10 +809,10 @@ class Utilities:
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
             output_name = input_path.split('\\')[-1]
             output_path = output_dir + '\\' + output_name
-            if self.asset_attrs('udm2')['suffix'] in input_path:
-                data_type = self.asset_attrs('udm2')['data type']
-            if self.asset_attrs('analytic_sr')['suffix'] in input_path:
-                data_type = self.asset_attrs('analytic_sr')['data type']
+            if self.asset_attrs(self.udm2_name[0])['suffix'] in input_path:
+                data_type = self.asset_attrs(self.udm2_name[0])['data type']
+            if self.asset_attrs(self.analytic_sr_name[0])['suffix'] in input_path:
+                data_type = self.asset_attrs(self.analytic_sr_name[0])['data type']
             self.gdal_clip(input_path, self.pixel_res(self.satellite), self.aoi_shp, output_path, data_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -845,16 +862,16 @@ class Utilities:
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         if output_type == 'clear prob':
-            asset_type = 'udm2'
+            asset_type = self.udm2_name[0]
             clear_prob_dir = self.work_dir + '\\' + self.output_dirs['clear prob']
             if file_list is None:
                 file_list = []
                 for i in self.id_list_download:
-                    a = glob("{}\\{}*{}.tif".format(input_dir, i, self.asset_attrs('udm2')['suffix']))
+                    a = glob("{}\\{}*{}.tif".format(input_dir, i, self.asset_attrs(asset_type)['suffix']))
                     for j in a:
                         file_list.append(j)
             else:
-                file_list = [file for file in file_list if self.asset_attrs('udm2')['suffix'] in file]
+                file_list = [file for file in file_list if self.asset_attrs(asset_type)['suffix'] in file]
 
             # Check existing clipped images and remove the latest file, in case it is not complete
             file_list_exist = glob('{}\\*.tif'.format(clear_prob_dir))
@@ -865,11 +882,11 @@ class Utilities:
                     latest_file = max(file_list_exist, key=os.path.getctime)
                     os.remove(latest_file)
                     file_list_exist.remove(latest_file)
-                file_list = [file for file in file_list if file.split('\\')[-1].split(
+                file_list = [input_dir + file for file in file_list if file.split('\\')[-1].split(
                     '_{}'.format(self.asset_attrs(asset_type)['suffix']))[0] not in item_id_list_exist]
 
             for udm2_path in file_list:
-                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_{}'.format(self.asset_attrs('udm2')['suffix']))[0] + '_clearprob.tif'
+                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0] + '_clearprob.tif'
                 self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + clear_prob_dir)
@@ -879,14 +896,14 @@ class Utilities:
             if file_list is None:
                 file_list = []
                 for i in self.id_list_download:
-                    a = glob("{}\\{}*SR.tif".format(input_dir, i))
+                    a = glob("{}\\{}*_{}.tif".format(input_dir, i, self.asset_attrs(self.analytic_sr_name[0])['suffix']))
                     for j in a:
                         file_list.append(j)
             else:
-                file_list = [file for file in file_list if 'SR' in file]
+                file_list = [file for file in file_list if self.asset_attrs(self.analytic_sr_name[0])['suffix'] in file]
             for sr_path in file_list:
                 ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1].split(
-                    '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] + '_ndvi.tif'
+                    '_{}'.format(self.asset_attrs(self.analytic_sr_name[0])['suffix']))[0] + '_ndvi.tif'
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
             time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
@@ -949,7 +966,7 @@ class Utilities:
         shp_name = shapefile_path.split('\\')[-1].split('.shp')[0]
         # List merged and clipped udm2 file path
         if file_list is None:
-            file_list = glob('{}\\{}\\*udm2.tif'.format(self.work_dir, self.output_dirs['clip']))
+            file_list = glob('{}\\{}\\*_{}.tif'.format(self.work_dir, self.output_dirs['clip'], self.udm2_name[0]))
         else:
             file_list = [file for file in file_list if 'udm2' in file]
 
@@ -957,13 +974,13 @@ class Utilities:
         # if save_clip is True:
         #     file_list_exist = glob('{}\\*.tif'.format(output_dir))
         #     if file_list_exist:
-        #         item_id_list_exist = [file.split('\\')[0].split('_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0]
+        #         item_id_list_exist = [file.split('\\')[-1].split('_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0]
         #                               for file in file_list_exist]
         #         if self.remove_latest is True:
         #             latest_file = max(file_list_exist, key=os.path.getctime)
         #             os.remove(latest_file)
         #             file_list_exist.remove(latest_file)
-        #         file_list = [file for file in file_list if file.split('\\')[0].split(
+        #         file_list = [input_dir + file for file in file_list if file.split('\\')[-1].split(
         #             '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] not in item_id_list_exist]
 
         asset_id_list = []
