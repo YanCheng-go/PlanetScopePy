@@ -22,7 +22,7 @@ ut.gdal_osgeo_dir = r'C:\Python37\Anaconda3\Lib\site-packages\osgeo'
 # Set work directory
 ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
 # Set folders for saving different outputs
-ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge_test',
+ut.output_dirs = {'raw': 'raw_clip_test', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge_clip_test',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
 ut.api_key = "e912e7e40d4d4c92bd6cbdffef89b76c"  #"9cada8bc134546fe9c1b8bce5b71860f"
 ut.satellite = 'PS'
@@ -32,7 +32,7 @@ ut.dpi = 90
 # Filter settings
 ut.filter_items = ['date', 'cloud_cover', 'aoi']
 ut.item_types = ["PSScene4Band"]
-ut.asset_types = ['analytic_sr', 'udm2']
+ut.asset_types = ['analytic_sr_clip', 'udm2_clip'] # download() cannot be used for on-the-fly clipped assets (with asset_type named as ['analytic_sr_clip', 'udm2_clip'])
 # Set filter
 ut.start_date = '2020-02-05'
 ut.end_date = '2020-02-6'
@@ -75,9 +75,9 @@ ut.start_up()
 # # ===================================         Merge        ======================================#
 # Set input directory that includes all data to be merged
 # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
-file_list = glob("{}\\*AnalyticMS_SR.tif".format(input_dir)) # only for udm2
-# file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
+input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw_online'
+file_list = glob("{}\\*udm2_clip*.tif".format(input_dir)) #### The * after udm2_clip can avoid repeating set_null process if it has been down
+# only for udm2_clip # for checking existing setnull file, better to write as "udm2_clip*" instead of udm2_clip... I mean include set_null file as well
 ut.merge(file_list=file_list)
 #
 #
