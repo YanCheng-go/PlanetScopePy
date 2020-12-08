@@ -1,7 +1,7 @@
 # PlanetScope_tools
 Image preprocessing and raster analysis for PlanetScope imagery from Planet Lab.
 
-### Functinos
+### Functions
 1. Download
 2. Merge
 3. Clip 
