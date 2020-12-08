@@ -1,6 +1,15 @@
 # PlanetScope_tools
 Image preprocessing and raster analysis for PlanetScope imagery from Planet Lab.
 
+### Functinos
+1. Download
+2. Merge
+3. Clip 
+4. Bomas -> thumbnails of AOI where the percentage of cloud contaminated pixels is below the user-defined threshold.
+5. Band math -> NDVI with the information of the probability of being clear pixel/no cloud contaminations
+
+![conceptual diagram](https://github.com/YanCheng-go/PlanetScope_tools/blob/master/conceptual%20diagram.png)
+
 ### Preparation
 1. Download Pycharm - community version 
 2. Download Preparation_for_PlanetScope_tools.zip file
@@ -22,6 +31,3 @@ Image preprocessing and raster analysis for PlanetScope imagery from Planet Lab.
     - make a note of the path of osgeo package in this path... it is associate to the default_gdal_osgeo_dir variable
 
 
-### Structure
-
-![conceptual diagram](https://github.com/YanCheng-go/PlanetScope_tools/blob/master/conceptual%20diagram.png)
