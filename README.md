@@ -24,4 +24,4 @@ Image preprocessing and raster analysis for PlanetScope imagery from Planet Lab.
 
 ### Structure
 
-[!conceptual diagram](https://github.com/YanCheng-go/PlanetScope_tools/blob/master/conceptual%20diagram.png)
+![conceptual diagram](https://github.com/YanCheng-go/PlanetScope_tools/blob/master/conceptual%20diagram.png)
