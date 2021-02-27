@@ -17,10 +17,10 @@ ut = utils.Utilities()
 # You can also change the variables namely default_XXXXXX in the Utilities.py file
 # In this case, you do not need to set these variables when you call functions in Utilities.py
 # Set environment
-ut.gdal_osgeo_dir = r'C:\Users\ChengY\AppData\Roaming\Python\Python37\site-packages\osgeo'
+ut.gdal_osgeo_dir = '/Users/maverickmiaow/anaconda3/pkgs/gdal-2.3.3-py37hbe65578_0/lib/python3.7/site-packages/osgeo'
 
 # Set work directory
-ut.work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
+ut.work_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
 # Set folders for saving different outputs
 ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
@@ -38,7 +38,7 @@ ut.asset_types = ['analytic_sr', 'udm2']
 ut.start_date = '2020-02-05'
 ut.end_date = '2020-02-11'
 ut.cloud_cover = 1
-ut.aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
+ut.aoi_shp = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology/study_area_aoi/study aoi.shp'
 # Settings for raster visualization
 ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
 ut.percentile = [2, 98]
@@ -48,7 +48,7 @@ ut.remove_latest = False # Set as True only when you killed the previous run and
 
 # ===================================       Set up everything          ======================================#
 # Create default folders and execution track file
-ut.start_up()
+# ut.start_up()
 
 #
 # # # ===================================         All in one        ======================================#
@@ -73,13 +73,13 @@ ut.start_up()
 # ut.download_assets(output_dir=output_dir)
 #
 #
-# # ===================================         Merge        ======================================#
-# # Set input directory that includes all data to be merged
-# # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# input_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
-# file_list = glob("{}\\*udm2.tif".format(input_dir)) # only for udm2
-# # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
-# ut.merge(file_list=file_list)
+# ===================================         Merge        ======================================#
+# Set input directory that includes all data to be merged
+# the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
+input_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
+file_list = glob("{}\\*SR_clip.tif".format(input_dir)) # only for udm2
+# file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
+ut.merge(file_list=file_list)
 #
 #
 # # ===================================         Clip        ======================================#
