@@ -100,7 +100,7 @@ class Utilities:
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
                            'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
     # API Key
-    default_api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+    default_api_key = "YOUR PLANET API TOKEN"
     # Specs
     default_satellite = 'PS'
     default_proj_code = 32737
