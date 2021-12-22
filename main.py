@@ -24,7 +24,7 @@ ut.work_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
 # Set folders for saving different outputs
 ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
                   'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
-ut.api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+ut.api_key = "YOUR PLANET API TOKEN"
 ut.satellite = 'PS'
 ut.proj_code = 32737
 ut.dpi = 90
