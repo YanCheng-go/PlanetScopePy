@@ -103,7 +103,10 @@ class Utilities:
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
                            'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
     # API Key
-    default_api_key = "eb550b59e9674868af730df066c1f3cb"
+    default_api_file = str(Path(os.getcwd()) / 'api_key.txt')
+    default_api_key = open(default_api_file, 'r').readlines()[0]
+    default_api_key.close()
+
     # Specs
     default_satellite = 'PS'
     default_proj_code = 32737
