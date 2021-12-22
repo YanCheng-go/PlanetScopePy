@@ -83,7 +83,10 @@ import requests
 from requests.auth import HTTPBasicAuth
 import sys
 import warnings
+
 warnings.simplefilter('ignore')
+
+from pathlib import Path
 
 
 class Utilities:
@@ -93,14 +96,14 @@ class Utilities:
     '''
 
     # Set environment
-    default_gdal_osgeo_dir = r'C:\Users\ChengY\AppData\Roaming\Python\Python37\site-packages\osgeo'
+    default_gdal_osgeo_dir = str(Path(os.getcwd()) / 'venv/lib/python3.8/site-packages/osgeo')
 
     # Set directories
-    default_work_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD'
+    default_work_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1'
     default_output_dirs = {'raw': 'raw', 'clipped raw': 'clipped_raw', 'merge': 'merge', 'clip': 'clip',
                            'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
     # API Key
-    default_api_key = "9cada8bc134546fe9c1b8bce5b71860f"
+    default_api_key = "eb550b59e9674868af730df066c1f3cb"
     # Specs
     default_satellite = 'PS'
     default_proj_code = 32737
@@ -109,15 +112,15 @@ class Utilities:
     default_item_types = ["PSScene4Band"]
     default_process_level = '3B'
     default_asset_types = ['analytic_sr', 'udm2']
-    default_start_date = '2019-01-20'
-    default_end_date = '2019-01-31'
-    default_cloud_cover = 0.8
-    default_aoi_shp = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\Kapiti\Kapiti_Jun18_v2_prj.shp'
+    default_start_date = '2019-01-01'
+    default_end_date = '2020-01-01'
+    default_cloud_cover = 1
+    default_aoi_shp = '/mnt/raid5/California_timeseries/aois/sn_aoi1.shp'
     # Color composition for visualization
-    default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2} # False color composition for PlanetScope images
+    default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
     default_dpi = 90
     default_percentile = [2, 98]
-    default_remove_latest = False
+    default_remove_latest = True
 
     def __init__(self, gdal_osgeo_dir=default_gdal_osgeo_dir, work_dir=default_work_dir,
                  output_dirs=default_output_dirs, satellite=default_satellite, proj_code=default_proj_code,
@@ -150,16 +153,19 @@ class Utilities:
                             manually and the latest file is not complete. If false, the latest file will not be removed.
         '''
 
-        self.gdal_osgeo_dir = gdal_osgeo_dir
-        self.gdal_scripts_path = gdal_osgeo_dir + '\\scripts'
-        self.gdal_data_path = gdal_osgeo_dir + '\\data\\gdal'
-        self.gdal_proj_path = gdal_osgeo_dir + '\\data\\proj'
-        sys.path.append(self.gdal_scripts_path)
-        os.environ["GDAL_DATA"] = self.gdal_data_path
-        os.environ['PROJ_LIB'] = self.gdal_proj_path
-        self.gdal_calc_path = gdal_osgeo_dir + '\\scripts\\gdal_calc.py'
-        self.gdal_merge_path = gdal_osgeo_dir + '\\scripts\\gdal_merge.py'
-        self.gdal_translate_path = gdal_osgeo_dir + '\\scripts\\gdal_translate.exe'
+        # self.gdal_osgeo_dir = gdal_osgeo_dir
+        # self.gdal_scripts_path = str(Path(gdal_osgeo_dir) / 'scripts')
+        # self.gdal_data_path = str(Path(gdal_osgeo_dir) / 'data/gdal')
+        # self.gdal_proj_path = str(Path(gdal_osgeo_dir) / 'data/proj')
+        # sys.path.append(self.gdal_scripts_path)
+        # os.environ["GDAL_DATA"] = self.gdal_data_path
+        # os.environ['PROJ_LIB'] = self.gdal_proj_path
+        self.gdal_calc_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_calc.py'
+        # self.gdal_calc_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_calc.py')
+        self.gdal_merge_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_merge.py'
+        # self.gdal_merge_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_merge.py')
+        self.gdal_translate_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_translate.py'
+        # self.gdal_translate_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_translate.exe')
         self.work_dir = work_dir
         self.output_dirs = output_dirs
         self.satellite = satellite
@@ -180,8 +186,8 @@ class Utilities:
         self.dpi = dpi
         self.percentile = percentile
         self.remove_latest = remove_latest
-        self.records_path = None # File path of execution track document
-        self.id_list_download = None # a list of item id which will be downloaded
+        self.records_path = None  # File path of execution track document
+        self.id_list_download = None  # a list of item id which will be downloaded
 
     def shp_to_json(self):
         '''
@@ -194,8 +200,8 @@ class Utilities:
         if shp.crs != {'init': 'epsg:{}'.format(str(self.proj_code))}:
             shp = shp.to_crs({'init': 'epsg:{}'.format(str(self.proj_code))})
         else:
-            shp2 = shp.to_crs({'init': 'epsg:4326'})
-        coors = np.array(dict(json.loads(shp2['geometry'].to_json()))
+            shp = shp.to_crs({'init': 'epsg:4326'})
+        coors = np.array(dict(json.loads(shp['geometry'].to_json()))
                          ['features'][0]['geometry']['coordinates'])[:, :, 0:2].tolist()
         aoi_geom = {"type": "Polygon", "coordinates": coors}
         # print(self.aoi_geom)
@@ -253,7 +259,7 @@ class Utilities:
         print('The outputs will be saved in this directory: ' + self.work_dir)
 
         for i in self.output_dirs.keys():
-            self.create_dir(self.work_dir + '\\{}'.format(self.output_dirs[i]))
+            self.create_dir(Path(self.work_dir) / '{}'.format(self.output_dirs[i]))
 
     def create_track_file(self):
         '''
@@ -265,7 +271,7 @@ class Utilities:
         :return:
         '''
 
-        records_path = self.work_dir + '\\Execution_Track.txt'
+        records_path = Path(self.work_dir) / 'Execution_Track.txt'
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         if not os.path.exists(records_path):
             records_file = open(records_path, "w")
@@ -278,7 +284,7 @@ class Utilities:
         self.records_path = records_path
 
     def start_up(self):
-        self.create_track_file()
+        # self.create_track_file()
         self.setup_dirs()
 
     def create_filter(self):
@@ -310,8 +316,8 @@ class Utilities:
         :return: asset_exist, boolean, existence of required asset
         '''
 
-        output_dir = self.work_dir + '\\' + self.output_dirs['raw']
-        records_file = open(self.records_path, "a+")
+        output_dir = Path(self.work_dir) / self.output_dirs['raw']
+        # records_file = open(self.records_path, "a+")
 
         # Request asset with item id
         item_url = 'https://api.planet.com/data/v1/item-types/{}/items/{}/assets'.format(item_type, item_id)
@@ -345,8 +351,8 @@ class Utilities:
             # print(download_link)
             response = requests.get(download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_{}_{}.tif'.format(item_id, self.process_level,
-                                                                self.asset_attrs(asset_type)['suffix']), "wb") as handle:
+            with open(Path(output_dir) / '{}_{}_{}.tif'.format(item_id, self.process_level,
+                                                               self.asset_attrs(asset_type)['suffix']), "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
                         handle.write(data)
@@ -361,9 +367,9 @@ class Utilities:
                         sys.stdout.flush()
             asset_exist = True
         else:
-            records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
+            # records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
             asset_exist = False
-        records_file.close()
+        # records_file.close()
         return asset_exist
 
     def download_client(self, item_id, asset_type, item_type):
@@ -378,8 +384,8 @@ class Utilities:
         :return: asset_exist, boolean, existence of required asset
         '''
 
-        output_dir = self.work_dir + '\\' + self.output_dirs['raw']
-        records_file = open(self.records_path, "a+")
+        output_dir = Path(self.work_dir) / self.output_dirs['raw']
+        # records_file = open(self.records_path, "a+")
 
         assets = self.client.get_assets_by_id(item_type, item_id).get()
         # print(assets.keys())
@@ -409,9 +415,9 @@ class Utilities:
             body.wait()
             asset_exist = True
         else:
-            records_file.write("{} {} {}\n\n".format(item_id, asset_type, item_type))
+            # records_file.write("{} {} {}\n\n".format(item_id, asset_type, item_type))
             asset_exist = False
-        records_file.close()
+        # records_file.close()
         return asset_exist
 
     def download_clipped(self, item_id, item_type, asset_type='analytic_sr'):
@@ -426,9 +432,9 @@ class Utilities:
         '''
 
         # Create new folder
-        output_dir = self.work_dir + '\\' + self.output_dirs['clipped_raw']
+        output_dir = Path(self.work_dir) / self.output_dirs['clipped_raw']
         self.create_dir(output_dir)
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         print('The clipped raw images will be saved in this directory: ' + output_dir)
         # Construct clip API payload
         clip_payload = {
@@ -464,7 +470,8 @@ class Utilities:
             # Download clipped asset
             response = requests.get(clip_download_url, stream=True)
             total_length = response.headers.get('content-length')
-            with open(output_dir + '\\' + '{}_{}_{}.tif'.format(item_id, self.process_level, self.asset_attrs(asset_type)['suffix']),
+            with open(Path(output_dir) / '{}_{}_{}.tif'.format(item_id, self.process_level,
+                                                               self.asset_attrs(asset_type)['suffix']),
                       "wb") as handle:
                 if total_length is None:
                     for data in response.iter_content():
@@ -480,9 +487,9 @@ class Utilities:
                         sys.stdout.flush()
             asset_exist = True
         else:
-            records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
+            # records_file.write("NO FILE: {} {} {}\n\n".format(item_id, asset_type, item_type))
             asset_exist = False
-        records_file.close()
+        # records_file.close()
         return asset_exist
 
     def download_assets(self, clipped=None, output_dir=None):
@@ -495,12 +502,12 @@ class Utilities:
         '''
 
         print('Start to download assets :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute download_assets():\nArguments: clipped={} output_dir={}\nStart time: {}\n\n'
-                           .format(clipped, output_dir, time_str))
+        # records_file.write('Execute download_assets():\nArguments: clipped={} output_dir={}\nStart time: {}\n\n'
+        #                    .format(clipped, output_dir, time_str))
         if output_dir is None:
-            output_dir = self.work_dir + '\\' + self.output_dirs['raw']
+            output_dir = Path(self.work_dir) / self.output_dirs['raw']
 
         # Download clipped assets or not
         if clipped is None:
@@ -508,7 +515,7 @@ class Utilities:
 
         # Create filter
         and_filter = self.create_filter()
-        records_file.write('Filter settings: {}\n\n'.format(and_filter))
+        # records_file.write('Filter settings: {}\n\n'.format(and_filter))
         # Search items
         req = filters.build_search_request(and_filter, self.item_types)
         res = self.client.quick_search(req)
@@ -530,24 +537,25 @@ class Utilities:
                         asset_exist = self.download_one(item_id, asset_type, item_type)
                         if asset_exist is True:
                             metadata = [i for i in res.items_iter(250) if i['id'] == item_id]
-                            records_file = open(self.records_path, "a+")
-                            records_file.write('File Exists: {}_{}_{} {}\n\n'
-                                               .format(item_id, self.process_level,
-                                                       self.asset_attrs(asset_type)['suffix'], item_type))
-                            records_file.write('Metadata for {}_{}_{} {}\n{}\n\n'
-                                               .format(item_id, self.process_level,
-                                                       self.asset_attrs(asset_type)['suffix'],
-                                                       item_type, metadata))
+                            # records_file = open(self.records_path, "a+")
+                            # records_file.write('File Exists: {}_{}_{} {}\n\n'
+                            #                    .format(item_id, self.process_level,
+                            #                            self.asset_attrs(asset_type)['suffix'], item_type))
+                            # records_file.write('Metadata for {}_{}_{} {}\n{}\n\n'
+                            #                    .format(item_id, self.process_level,
+                            #                            self.asset_attrs(asset_type)['suffix'],
+                            #                            item_type, metadata))
                 else:
-                    self.download_clipped(item_id)
+                    for item_type in self.item_types:
+                        self.download_clipped(item_id, item_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish downloading assets :)')
         print('The raw images have been saved in this directory: ' + output_dir)
-        print('The information of missing assets has be saved in this file: ' + self.records_path)
-        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
-        records_file.write('End time: {}\n\n'.format(time_str))
-        records_file.close()
+        # print('The information of missing assets has be saved in this file: ' + self.records_path)
+        # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
+        # records_file.write('End time: {}\n\n'.format(time_str))
+        # records_file.close()
 
     def gdal_translate(self, input_path, output_path):
         '''
@@ -570,7 +578,7 @@ class Utilities:
         :return:
         '''
 
-        temp_output_path = self.work_dir + '\\TempFile.tif'
+        temp_output_path = Path(self.work_dir) / 'TempFile.tif'
         gdal_calc_str = 'python {0} --calc "A+B+C+D+E+F+G" --co "COMPRESS=LZW" --format GTiff ' \
                         '--type Byte -A {1} --A_band 1 -B {2} --B_band 2 -C {3} --C_band 3 -D {4} --D_band 4 ' \
                         '-E {5} --E_band 5 -F {6} --F_band 6 -G {7} --G_band 7 --outfile {8} --overwrite'
@@ -592,18 +600,18 @@ class Utilities:
         '''
 
         print('Start to process udm2 data :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute udm2_setnull():\nArguments: file_list={}\nStart time: {}\n\n'
-                           .format(file_list, time_str))
+        # records_file.write('Execute udm2_setnull():\nArguments: file_list={}\nStart time: {}\n\n'
+        #                    .format(file_list, time_str))
 
-        input_dir = self.work_dir + '\\' + self.output_dirs['raw']
+        input_dir = str(Path(self.work_dir) / self.output_dirs['raw'])
         output_dir = input_dir
 
         if file_list is None:
             file_list = []
             for i in self.id_list_download:
-                a = glob("{}\\{}*udm2.tif".format(input_dir, i))
+                a = glob(str(Path('{}/{}*udm2.tif'.format(input_dir, i))))
                 for j in a:
                     file_list.append(j)
         else:
@@ -611,34 +619,37 @@ class Utilities:
         # print(file_list)
 
         # Check existing setnull data and remove the latest one in case it was not complete
-        item_id_list = list(set([file.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
+        item_id_list = list(set([Path(file).stem.split('_{}_'.format(self.process_level))[0]
                                  for file in file_list]))
         exist_setnull = list(
-            set([file.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
-                 for file in file_list if 'setnull' in file]))
+            set([Path(file).stem.split('_{}_'.format(self.process_level))[0]
+                 for file in glob(str(Path('{}/*setnull*.tif'.format(output_dir))))]))
         new_setnull = [i for i in item_id_list if i not in exist_setnull]
         if new_setnull:
             if exist_setnull:
-                file_list_exist_setnull = glob('{}\\*setnull.tif'.format(os.path.dirname(file_list[0])))
+                file_list_exist_setnull = glob(str(Path('{}/*setnull.tif'.format(output_dir))))
                 if self.remove_latest is True:
                     latest_file = max(file_list_exist_setnull, key=os.path.getctime)
                     # Remove the latest file, in case it is not complete
                     os.remove(latest_file)
-                    file_list.remove(latest_file)
+                    file_list_exist_setnull.remove(latest_file)
                 # Add the removed one to the file list
-                new_setnull.append(latest_file.split('\\')[-1].split('_{}_'.format(self.process_level))[0])
+                new_setnull.append(Path(latest_file).stem.split('_{}_'.format(self.process_level))[0])
         file_list = [file for file in file_list for i in new_setnull if i in file]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
-            output_path = output_dir + '\\' + input_path.split('\\')[-1].split('.')[0] + '_setnull.tif'
-            self.gdal_udm2_setnull(input_path, output_path)
+            output_path = str(Path(output_dir) / str(Path(input_path).stem.split('.')[0] + '_setnull.tif'))
+            try:
+                self.gdal_udm2_setnull(input_path, output_path)
+            except:
+                pass
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish processing udm2 data :)')
         print('The outputs have been saved in this directory: ' + output_dir)
-        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
-        records_file.write('End time: {}\n\n'.format(time_str))
-        records_file.close()
+        # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
+        # records_file.write('End time: {}\n\n'.format(time_str))
+        # records_file.close()
 
     def gdal_merge(self, input_path, output_path, data_type):
         '''
@@ -653,10 +664,10 @@ class Utilities:
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
-    def merge(self, file_list=None):
+    def merge(self, input_dir=None, file_list=None):
         '''
         Merge images acquired in the same day with the same satellite id
-        :param asset_types: list, list, a list of asset type
+        :param input_dir: string, input folder
         :param file_list: list, a list of file path
         :return:
         '''
@@ -665,54 +676,55 @@ class Utilities:
         self.udm2_setnull(file_list)
 
         print('Start to merge images collected in the same day on the same orbit :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute merge():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
-        input_dir = self.work_dir + '\\' + self.output_dirs['raw']
-        output_dir = self.work_dir + '\\' + self.output_dirs['merge']
+        # records_file.write('Execute merge():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
+        input_dir = str(Path(self.work_dir) / self.output_dirs['raw']) if input_dir is None else input_dir
+        output_dir = str(Path(self.work_dir) / self.output_dirs['merge'])
 
         if file_list is None:
             file_list = []
             for i in self.id_list_download:
-                a = glob("{}\\{}*.tif".format(input_dir, i))
+                a = glob(str(Path('{}/{}*.tif'.format(input_dir, i))))
                 for j in a:
                     file_list.append(j)
             # print(file_list)
 
         for asset_type in self.asset_types:
-            date_list = list(set([file.split('\\')[-1].split('_')[0]
+            date_list = list(set([Path(file).stem.split('_')[0]
                                   for file in file_list if self.asset_attrs(asset_type)['suffix'] in file]))
-            # Check existing merged data and remove the latested file in case it was not complete
-            file_list_exist = glob('{}\\*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))
+            # Check existing merged data and remove the latest file in case it was not complete
+            file_list_exist = glob(str(Path('{}/*{}.tif'.format(output_dir, self.asset_attrs(asset_type)['suffix']))))
             if file_list_exist:
-                date_list_exist = list(set([file.split('\\')[-1].split('_')[0] for file in file_list_exist]))
+                date_list_exist = list(set([Path(file).stem.split('_')[0] for file in file_list_exist]))
                 if self.remove_latest is True:
                     latest_file = max(file_list_exist, key=os.path.getctime)
-                    latest_file_date = latest_file.split('\\')[-1].split('_')[0]
+                    latest_file_date = Path(latest_file).stem.split('_')[0]
                     os.remove(latest_file)
                     date_list_exist.remove(latest_file_date)
                 date_list = [date for date in date_list if date not in date_list_exist]
 
             for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
                 if asset_type == 'udm2':
-                    file_list_new = glob("{}\\{}*{}_setnull.tif"
-                                         .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
+                    file_list_new = glob(str(Path('{}/{}*{}_setnull.tif'
+                                                  .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))))
                 else:
-                    file_list_new = glob("{}\\{}*{}.tif".format(input_dir, date, self.asset_attrs(asset_type)['suffix']))
-                input_path = ' '.join(str(i) for i in file_list_new)
-                satellite_id_list = list(set([x.split('\\')[-1].split('_{}_'.format(self.process_level))[0]
+                    file_list_new = [i for i in file_list if
+                                     date in Path(i).stem and self.asset_attrs(asset_type)['suffix'] in Path(i).stem]
+                satellite_id_list = list(set([Path(x).stem.split('_{}_'.format(self.process_level))[0]
                                              .split('_')[-1] for x in file_list_new]))
                 for satellite_id in satellite_id_list:
-                    output_path = output_dir + '\\' + date + '_' + \
-                                     satellite_id + '_{}.tif'.format(self.asset_attrs(asset_type)['suffix'])
+                    output_path = str(Path(output_dir) / str(date + '_' + satellite_id + '_{}.tif'
+                                                             .format(self.asset_attrs(asset_type)['suffix'])))
+                    input_path = ' '.join(str(i) for i in file_list_new if satellite_id in i)
                     self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'])
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
         print('The merged images have been saved in this directory: ' + output_dir)
-        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
-        records_file.write('End time: {}\n\n'.format(time_str))
-        records_file.close()
+        # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
+        # records_file.write('End time: {}\n\n'.format(time_str))
+        # records_file.close()
 
     @staticmethod
     def gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type):
@@ -749,7 +761,7 @@ class Utilities:
                             # dstSRS='epsg:{}'.format(str(self.proj_code)),
                             resampleAlg=gdal.GRA_NearestNeighbour,
                             cutlineDSName=shapefile_path,
-                            cutlineLayer=shapefile_path.split('\\')[-1].split('.')[0],
+                            cutlineLayer=Path(shapefile_path).stem.split('.')[0],
                             cropToCutline=True,
                             dstNodata=-9999,
                             options=['COMPRESS=LZW'])
@@ -766,22 +778,22 @@ class Utilities:
         '''
 
         print('Start GDAL clip :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
-        input_dir = self.work_dir + '\\' + self.output_dirs['merge']
-        output_dir = self.work_dir + '\\' + self.output_dirs['clip']
+        # records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
+        input_dir = str(Path(self.work_dir) / self.output_dirs['merge'])
+        output_dir = str(Path(self.work_dir) / self.output_dirs['clip'])
 
         if file_list is None:
             file_list = []
             for i in self.id_list_download:
-                a = glob("{}\\{}*.tif".format(input_dir, i))
+                a = glob(str(Path('{}/{}*.tif'.format(input_dir, i))))
                 for j in a:
                     file_list.append(j)
             # print(file_list)
 
         # Check existing clipped images and remove the latest file, in case it is not complete
-        file_list_exist = glob('{}\\*.tif'.format(output_dir))
+        file_list_exist = glob(str(Path('{}/*.tif'.format(output_dir))))
         if file_list_exist:
             if self.remove_latest is True:
                 latest_file = max(file_list_exist, key=os.path.getctime)
@@ -790,8 +802,8 @@ class Utilities:
             file_list = [file for file in file_list if file not in file_list_exist]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
-            output_name = input_path.split('\\')[-1]
-            output_path = output_dir + '\\' + output_name
+            output_name = str(Path(input_path).name)
+            output_path = str(Path(output_dir) / output_name)
             if self.asset_attrs('udm2')['suffix'] in input_path:
                 data_type = self.asset_attrs('udm2')['data type']
             if self.asset_attrs('analytic_sr')['suffix'] in input_path:
@@ -801,9 +813,9 @@ class Utilities:
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
         print('The clipped images have been saved in this directory: ' + output_dir)
-        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
-        records_file.write('End time: {}\n\n'.format(time_str))
-        records_file.close()
+        # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
+        # records_file.write('End time: {}\n\n'.format(time_str))
+        # records_file.close()
 
     def gdal_calc_ndvi(self, input_path, output_path):
         '''
@@ -838,10 +850,10 @@ class Utilities:
         '''
 
         print('Start GDAL band calculation :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute band_algebra():\nArguments: output_type={} file_list={}\nStart time: {}\n\n'
-                           .format(output_type, file_list, time_str))
+        # records_file.write('Execute band_algebra():\nArguments: output_type={} file_list={}\nStart time: {}\n\n'
+        #                    .format(output_type, file_list, time_str))
         input_dir = self.work_dir + '\\' + self.output_dirs['clip']
 
         if output_type == 'clear prob':
@@ -859,8 +871,9 @@ class Utilities:
             # Check existing clipped images and remove the latest file, in case it is not complete
             file_list_exist = glob('{}\\*.tif'.format(clear_prob_dir))
             if file_list_exist:
-                item_id_list_exist = [file.split('\\')[-1].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0]
-                                      for file in file_list_exist]
+                item_id_list_exist = [
+                    file.split('\\')[-1].split('_{}'.format(self.asset_attrs(asset_type)['suffix']))[0]
+                    for file in file_list_exist]
                 if self.remove_latest is True:
                     latest_file = max(file_list_exist, key=os.path.getctime)
                     os.remove(latest_file)
@@ -869,13 +882,15 @@ class Utilities:
                     '_{}'.format(self.asset_attrs(asset_type)['suffix']))[0] not in item_id_list_exist]
 
             for udm2_path in file_list:
-                clear_prob_path = clear_prob_dir + '\\' + udm2_path.split('\\')[-1].split('_{}'.format(self.asset_attrs('udm2')['suffix']))[0] + '_clearprob.tif'
+                clear_prob_path = clear_prob_dir + '\\' + \
+                                  udm2_path.split('\\')[-1].split('_{}'.format(self.asset_attrs('udm2')['suffix']))[
+                                      0] + '_clearprob.tif'
                 self.gdal_calc_clear_prob(input_path=udm2_path, output_path=clear_prob_path)
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + clear_prob_dir)
 
         if output_type == 'NDVI':
-            ndvi_dir = self.work_dir + '\\' + self.output_dirs['NDVI']
+            ndvi_dir = Path(self.work_dir) / self.output_dirs['NDVI']
             if file_list is None:
                 file_list = []
                 for i in self.id_list_download:
@@ -885,15 +900,15 @@ class Utilities:
             else:
                 file_list = [file for file in file_list if 'SR' in file]
             for sr_path in file_list:
-                ndvi_path = ndvi_dir + '\\' + sr_path.split('\\')[-1].split(
+                ndvi_path = Path(ndvi_dir) / sr_path.split('\\')[-1].split(
                     '_{}'.format(self.asset_attrs('analytic_sr')['suffix']))[0] + '_ndvi.tif'
                 self.gdal_calc_ndvi(input_path=sr_path, output_path=ndvi_path)
             time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
             print('Finish GDAL Calculation :)')
             print('The outputs have been saved in this directory: ' + ndvi_dir)
-            records_file.write('The outputs have been saved in this directory: {}\n\n'.format(ndvi_dir))
-            records_file.write('End time: {}\n\n'.format(time_str))
-            records_file.close()
+            # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(ndvi_dir))
+            # records_file.write('End time: {}\n\n'.format(time_str))
+            # records_file.close()
 
     def stack_bands(self):
         '''
@@ -936,14 +951,14 @@ class Utilities:
         '''
 
         print('Start to clip images :)')
-        records_file = open(self.records_path, "a+")
+        # records_file = open(self.records_path, "a+")
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        records_file.write('Execute clip_clear_perc():\nArguments: shapefile_path={} clear_perc_min={} save_rgb={}, '
-                           'save_clip={} file_list={}\nStart time: {}\n\n'.format(shapefile_path, clear_perc_min,
-                                                                                  save_rgb, save_clip, file_list,
-                                                                                  time_str))
-        input_dir = self.work_dir + '\\' + self.output_dirs['clip']
-        output_dir = self.work_dir + '\\' + self.output_dirs['clip clear perc']
+        # records_file.write('Execute clip_clear_perc():\nArguments: shapefile_path={} clear_perc_min={} save_rgb={}, '
+        #                    'save_clip={} file_list={}\nStart time: {}\n\n'.format(shapefile_path, clear_perc_min,
+        #                                                                           save_rgb, save_clip, file_list,
+        #                                                                           time_str))
+        input_dir = Path(self.work_dir) / self.output_dirs['clip']
+        output_dir = Path(self.work_dir) / self.output_dirs['clip clear perc']
 
         pixel_res = self.pixel_res(self.satellite)  # pixel resolution
         shp_name = shapefile_path.split('\\')[-1].split('.shp')[0]
@@ -1019,13 +1034,13 @@ class Utilities:
                     except:
                         pass
 
-        records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
+        # records_file.write('List of asset id of processed images: {}\n\n'.format(asset_id_list))
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images:)')
         print('The outputs have been saved in this directory: ' + output_dir)
-        records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
-        records_file.write('End time: {}\n\n'.format(time_str))
-        records_file.close()
+        # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
+        # records_file.write('End time: {}\n\n'.format(time_str))
+        # records_file.close()
 
 
 # Testing
