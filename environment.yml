@@ -1,0 +1,17 @@
+name: PlanetScopePy
+channels:
+  - conda-forge
+  - default
+dependencies:
+  - python=3.7
+  - pip
+  - pip:
+    - gdal==3.0.4
+    - geopandas==0.6.2
+    - rasterio==1.1.2
+    - fiona==1.8.13
+    - planet
+    - tqdm
+    - matplotlib
+    - numpy
+    - netCDF4
