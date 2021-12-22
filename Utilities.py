@@ -770,7 +770,7 @@ class Utilities:
         raster = None
         vector_dataset.Destroy()
 
-    def clip(self, file_list=None):
+    def clip(self, file_list=None, aoi_shp=None):
         '''
         Clip imagery to the extent of AOI
         :param file_list:
@@ -783,6 +783,8 @@ class Utilities:
         # records_file.write('Execute clip():\nArguments: file_list={}\nStart time: {}\n\n'.format(file_list, time_str))
         input_dir = str(Path(self.work_dir) / self.output_dirs['merge'])
         output_dir = str(Path(self.work_dir) / self.output_dirs['clip'])
+
+        aoi_shp = self.aoi_shp if aoi_shp is None else aoi_shp
 
         if file_list is None:
             file_list = []
@@ -808,7 +810,7 @@ class Utilities:
                 data_type = self.asset_attrs('udm2')['data type']
             if self.asset_attrs('analytic_sr')['suffix'] in input_path:
                 data_type = self.asset_attrs('analytic_sr')['data type']
-            self.gdal_clip(input_path, self.pixel_res(self.satellite), self.aoi_shp, output_path, data_type)
+            self.gdal_clip(input_path, self.pixel_res(self.satellite), aoi_shp, output_path, data_type)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish clipping images :)')
