@@ -29,5 +29,18 @@ Image preprocessing and raster analysis for PlanetScope imagery from Planet Lab.
         SQUARE BRACKETS]
     - find your installed packages here C:\\Users\[USER NAME]\AppData\Roaming\Python\Python37\site-packages
     - make a note of the path of osgeo package in this path... it is associate to the default_gdal_osgeo_dir variable
+    
+### Preparation (Conda virtual environment)
+#### Prerequisites
+1. install Anaconda or miniconda 
 
+#### Configure virtual environment
+1. Open a terminal in the root folder of this python project
+```
+cd <project directory>
+```
 
+2. Install python and dependencies
+```
+conda env create -f environment.yml
+```
