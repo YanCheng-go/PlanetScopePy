@@ -667,7 +667,7 @@ class Utilities:
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
-    def merge(self, input_dir=None, file_list=None):
+    def merge(self, input_dir=None, file_list=None, asset_type_list=default_asset_types):
         '''
         Merge images acquired in the same day with the same satellite id
         :param input_dir: string, input folder
@@ -675,8 +675,11 @@ class Utilities:
         :return:
         '''
 
-        # Preprocessing udm2 data
-        self.udm2_setnull(file_list)
+        if 'udm2' in asset_type_list:
+            # Preprocessing udm2 data
+            self.udm2_setnull(file_list)
+        else:
+            pass
 
         print('Start to merge images collected in the same day on the same orbit :)')
         # records_file = open(self.records_path, "a+")
@@ -693,7 +696,7 @@ class Utilities:
                     file_list.append(j)
             # print(file_list)
 
-        for asset_type in self.asset_types:
+        for asset_type in asset_type_list:
             date_list = list(set([Path(file).stem.split('_')[0]
                                   for file in file_list if self.asset_attrs(asset_type)['suffix'] in file]))
             # Check existing merged data and remove the latest file in case it was not complete
