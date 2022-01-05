@@ -709,7 +709,7 @@ class Utilities:
 
             for date in tqdm(date_list, total=len(date_list), unit="item", desc='Merging images'):
                 if asset_type == 'udm2':
-                    file_list_new = glob(str(Path('{}/{}*{}_setnull.tif'
+                    file_list_new = glob(str(Path('{}/{}*{}*_setnull.tif'
                                                   .format(input_dir, date, self.asset_attrs(asset_type)['suffix']))))
                 else:
                     file_list_new = [i for i in file_list if
