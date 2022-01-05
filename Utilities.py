@@ -106,7 +106,6 @@ class Utilities:
     # API Key
     default_api_file = str(Path(os.getcwd()) / 'api_key.txt')
     default_api_key = open(default_api_file, 'r').readlines()[0]
-    default_api_key.close()
 
     # Specs
     default_satellite = 'PS'
