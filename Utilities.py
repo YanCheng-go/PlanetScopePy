@@ -663,7 +663,7 @@ class Utilities:
         :return:
         '''
 
-        gdal_merge_str = 'python {0} -a_nodata 0 -o {1} {2} -ot {3}'
+        gdal_merge_str = 'python {0} -a_nodata 0 -o {1} {2} -ot {3} -co COMPRESS=LZW'
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
@@ -732,8 +732,7 @@ class Utilities:
         # records_file.write('End time: {}\n\n'.format(time_str))
         # records_file.close()
 
-    @staticmethod
-    def gdal_clip(input_path, pixel_res, shapefile_path, output_path, data_type):
+    def gdal_clip(self, input_path, pixel_res, shapefile_path, output_path, data_type):
         '''
         GDAL clip function
         :param input_path:
@@ -759,7 +758,7 @@ class Utilities:
         if data_type == 'Byte':
             gdal_data_type = gdal.GDT_Byte
         # Create raster
-        OutTile = gdal.Warp(output_path, raster, format='GTiff',
+        OutTile = gdal.Warp('temp.vrt', raster, format='VRT',
                             outputType=gdal_data_type,
                             outputBounds=[minX, minY, maxX, maxY],
                             xRes=pixel_res, yRes=pixel_res,
@@ -769,8 +768,16 @@ class Utilities:
                             cutlineDSName=shapefile_path,
                             cutlineLayer=Path(shapefile_path).stem.split('.')[0],
                             cropToCutline=True,
-                            dstNodata=-9999,
+                            # dstNodata=-9999,
                             options=['COMPRESS=LZW'])
+
+        # Compression
+        translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine("-of Gtiff -co COMPRESS=LZW"))
+        gdal.Translate(output_path, 'temp.vrt', options=translateoptions)
+        # gdal_translate_str = 'python {0} -co COMPRESS=LZW temp.vrt {1}'
+        # gdal_translate_process = gdal_translate_str.format(self.gdal_translate_path, output_path)
+        # os.system(gdal_translate_process)
+
         # Close dataset
         OutTile = None
         raster = None
