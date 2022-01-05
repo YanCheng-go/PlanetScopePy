@@ -783,7 +783,7 @@ class Utilities:
         raster = None
         vector_dataset.Destroy()
 
-    def clip(self, file_list=None, aoi_shp=None):
+    def clip(self, file_list=None, aoi_shp=None, suffix=''):
         '''
         Clip imagery to the extent of AOI
         :param file_list:
@@ -817,7 +817,7 @@ class Utilities:
             file_list = [file for file in file_list if file not in file_list_exist]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
-            output_name = str(Path(input_path).name)
+            output_name = str(Path(input_path).stem) + f'{suffix}' + str(Path(input_path).suffix)
             output_path = str(Path(output_dir) / output_name)
             if self.asset_attrs('udm2')['suffix'] in input_path:
                 data_type = self.asset_attrs('udm2')['data type']
