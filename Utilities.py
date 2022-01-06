@@ -672,6 +672,7 @@ class Utilities:
         Merge images acquired in the same day with the same satellite id
         :param input_dir: string, input folder
         :param file_list: list, a list of file path
+        :param asset_type_list: list, a list of asset types
         :return:
         '''
 
@@ -1188,8 +1189,9 @@ class Utilities:
 
 # Testing
 if __name__ == '__main__':
-    ut = Utilities()
-    ut.start_up()
+    # ut = Utilities()
+    # ut.start_up()
+    pass
     # # Test several data
     # ut.id_list_download = ['20190107_074019_1049', '20190107_074018_1049']
     # date_list = [i.split('_')[0] for i in ut.id_list_download]
