@@ -925,8 +925,8 @@ class Utilities:
             # records_file.write('End time: {}\n\n'.format(time_str))
             # records_file.close()
 
-    def stack_as_nc(self, input_dir, output_dir, output_name, date_list, ref_image, base_date='19000101',
-                    input_suffix=None, udm2=None, udm2_suffix=None, ref_udm2=None):
+    def stack_as_nc(self, input_dir, output_dir, output_name, ref_image, base_date='19000101', date_list=None,
+                    input_suffix=None, udm2=None, udm2_suffix=None, ref_udm2=None, proj=True):
         """
 
         :param base_date: string, in the form of 'yyyy-mm-dd'
@@ -938,6 +938,14 @@ class Utilities:
             udm2_suffix = ''
         if input_suffix is None:
             input_suffix = ''
+        if date_list is None:
+            fp_list_all = glob(os.path.join(input_dir, '*.tif'))
+        else:
+            fp_list_all = [fp for fp in glob(os.path.join(input_dir, '*.tif'))
+                           if Path(fp).stem.split('_')[0] in date_list]
+        date_orbit_list = sorted(list(
+            set(['_'.join([str(Path(fp).stem.split('_')[0]), str(Path(fp).stem.split('_')[1])]) for fp in fp_list_all])))
+
 
         ds = gdal.Open(ref_image)  # reference -> could be any image from the candidate images to be stacked into a netCDF file
         # get the number of bands
@@ -952,11 +960,10 @@ class Utilities:
 
         # get the information of coordinate transformation
         b = ds.GetGeoTransform()  # bbox, interval
+        prj = ds.GetProjection()
         # calculate coordinates
-        # x = np.arange(nx)*b[1]+b[0]
-        # y = np.arange(ny)*b[5]+b[3]
-        x = range(nx)
-        y = range(ny)
+        x = np.arange(nx)*b[1]+b[0] if proj is True else range(nx)
+        y = np.arange(ny)*b[5]+b[3] if proj is True else range(ny)
         ds = None
 
         # the date of the first image
@@ -976,25 +983,26 @@ class Utilities:
         nco.createDimension('y', ny)
         nco.createDimension('time', None)
 
+        # assign crs
+        crs = nco.createVariable('spatial_ref', 'i4')
+        crs.spatial_ref = prj
+
         timeo = nco.createVariable('time', 'u1', ('time'))
         timeo.units = 'day'
         timeo.standard_name = f'days since {basedate}'
 
         xo = nco.createVariable('x', 'u4', ('x'))
-        # xo.units = 'm'
-        # xo.standard_name = 'projection_x_coordinate'
-        xo.units = ''
-        xo.standard_name = 'column_id'
+        xo.units = 'm' if proj is True else ''
+        xo.standard_name = 'projection_x_coordinate' if proj is True else 'column_id'
 
         yo = nco.createVariable('y', 'u4', ('y'))
-        # yo.units = 'm'
-        # yo.standard_name = 'projection_y_coordinate'
-        yo.units = ''
-        yo.standard_name = 'row_id'
+        yo.units = 'm' if proj is True else ''
+        yo.standard_name = 'projection_y_coordinate' if proj is True else 'row_id'
 
         # create variable for surface reflectance, quality layers, and additional information (metadata), with chunking
-        def create_variables(var, name, fmt, dims=('time', 'y', 'x'), fill_value=None, least_significant_digit=None):
-            out = nco.createVariable(var, fmt, dims, zlib=True, chunksizes=[chunk_time, chunk_y, chunk_x],
+        def create_variables(var, name, fmt, dims=('time', 'y', 'x'), chunksizes=[chunk_time, chunk_y, chunk_x],
+                             fill_value=None, least_significant_digit=None):
+            out = nco.createVariable(var, fmt, dims, chunksizes=chunksizes, zlib=True,
                                      fill_value=fill_value, least_significant_digit=least_significant_digit)
             out.standard_name = name
             return out
@@ -1007,7 +1015,7 @@ class Utilities:
             ds = None
             qao_list = list([create_variables(f'B{n_band+i+1}', f'UDM2_{i+1}', 'u1') for i in range(n_qa)])
         # metadata
-        mdo = create_variables('orbit', 'orbit', 'S1', dims=('time'))
+        mdo = create_variables('orbit', 'orbit', str, dims=('time'), chunksizes=[chunk_time])
 
         nco.Conventions = 'CF-1.6'
 
@@ -1016,40 +1024,36 @@ class Utilities:
         yo[:] = y
 
         # step through data, writing time and data to NetCDF
-        def func(i):
+        def func(date_orbit):
             # read the time values by parsing the filename
-            year = int(i[0:4])
-            mon = int(i[4:6])
-            day = int(i[6:8])
-            #         print('...'+i+'...')
-            itime = date_list.index(i)
+            year = int(date_orbit[0:4])
+            mon = int(date_orbit[4:6])
+            day = int(date_orbit[6:8])
             date_ = datetime(year, mon, day, 0, 0, 0)
             dtime = (date_ - basedate).total_seconds() / 86400.
+            itime = date_orbit_list.index(date_orbit)
             timeo[itime] = dtime
-
-            fp_list = glob(os.path.join(input_dir, f'{i}*{input_suffix}.tif'))
-            for fp in fp_list:
-                # metadata information
-                orbit_id = Path(fp).stem.split('_')[1]
-                mdo[itime ] = orbit_id
-                # surface reflectance
-                ds = gdal.Open(fp)
-                #             print(input_dir+'\\'+ fileName)
-                sr = ds.ReadAsArray()  # data
+            # metadata information
+            orbit_id = date_orbit.split('_')[1]
+            mdo[itime] = orbit_id
+            # surface reflectance
+            sr_fp = glob(os.path.join(input_dir, f'{date_orbit}*{input_suffix}.tif'))[0]
+            ds = gdal.Open(sr_fp)
+            #             print(input_dir+'\\'+ fileName)
+            sr = ds.ReadAsArray()  # data
+            ds = None
+            for band_idx in range(n_band):
+                sro_list[band_idx][itime, :, :] = sr[band_idx]
+            # quality information
+            if udm2 is True:  # after or before masking out clouds
+                udm2_fp = glob(os.path.join(input_dir, f'{date_orbit}*{udm2_suffix}.tif'))[0]
+                ds = gdal.Open(udm2_fp)
+                qa = ds.ReadAsArray()  # data
                 ds = None
-                for band_idx in range(n_band):
-                    sro_list[band_idx][itime, :, :] = sr[band_idx]
-                # quality information
-                if udm2 is True:  # after or before masking out clouds
-                    ds = gdal.Open(os.path.join(input_dir, f'{i}_{orbit_id}_{udm2_suffix}.tif'))
-                    qa = ds.ReadAsArray()  # data
-                    ds = None
-                    for qa_idx in range(n_qa):
-                        qao_list[qa_idx][itime, :, :] = qa[qa_idx]
+                for qa_idx in range(n_qa):
+                    qao_list[qa_idx][itime, :, :] = qa[qa_idx]
 
-        list(map(func, tqdm(date_list, total=len(date_list), unit='file', desc='tif_to_netCDF')))
-
-        #     itime=itime+1
+        list(map(func, tqdm(date_orbit_list, total=len(date_orbit_list), unit='file', desc='tif_to_netCDF')))
 
         print('Done!')
         print('Check your output: ' + output_dir)
