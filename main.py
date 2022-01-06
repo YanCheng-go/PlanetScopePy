@@ -9,58 +9,51 @@ Contributors: Dr. Anton Vrieling
 
 import Utilities as utils
 from glob import glob
+import os
+from pathlib import Path
 
-# Improt class
-ut = utils.Utilities()
 
 # ===================================          Settings        ======================================#
 # You can also change the variables namely default_XXXXXX in the Utilities.py file
 # In this case, you do not need to set these variables when you call functions in Utilities.py
-# Set environment
-ut.gdal_osgeo_dir = '/Users/maverickmiaow/anaconda3/pkgs/gdal-2.3.3-py37hbe65578_0/lib/python3.7/site-packages/osgeo'
-
-# Set work directory
-ut.work_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
-# Set folders for saving different outputs
-ut.output_dirs = {'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
-                  'clear prob': 'clear_prob', 'NDVI': 'NDVI', 'clip clear perc': 'bomas'}
-ut.api_key = "YOUR PLANET API TOKEN"
-ut.satellite = 'PS'
-ut.proj_code = 32737
-ut.dpi = 90
-
-# Filter settings
-ut.filter_items = ['date', 'cloud_cover', 'aoi']
-ut.item_types = ["PSScene4Band"]
-ut.process_level = '3B'
-ut.asset_types = ['analytic_sr', 'udm2']
-# Set filter
-ut.start_date = '2020-02-05'
-ut.end_date = '2020-02-11'
-ut.cloud_cover = 1
-ut.aoi_shp = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology/study_area_aoi/study aoi.shp'
-# Settings for raster visualization
-ut.rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
-ut.percentile = [2, 98]
-ut.remove_latest = False # Set as True only when you killed the previous run and want to rerun it. In this case,
-# the lasted file will be removed in case it is not a complete file...
+ut = utils.Utilities(
+    gdal_osgeo_dir=str(Path(os.getcwd()) / 'venv/lib/python3.8/site-packages/osgeo'),  # Set environment
+    work_dir='/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1',  # Set work directory
+    output_dirs={'raw': 'raw', 'clip': 'clip', 'clipped_raw': 'clipped_raw', 'merge': 'merge',
+                 'clear prob': 'clear_prob', 'NDVI': 'NDVI'},  # Set folders for saving different outputs
+    satellite='PS',
+    proj_code=4326,
+    dpi=90,
+    filter_items=['date', 'cloud_cover', 'aoi'],  # Filter settings
+    item_types=["PSScene4Band"],
+    process_level='3B',
+    asset_types=['analytic_sr', 'udm2'],
+    start_date='2019-01-01',
+    end_date='2020-01-01',
+    cloud_cover=1,
+    aoi_shp='/mnt/raid5/California_timeseries/aois/sn_aoi1.shp',
+    rgb_composition={'red': 4, 'green': 3, 'blue': 2},  # Settings for raster visualization
+    percentile=[2, 98],
+    remove_latest=True,  # Set as True only when you killed the previous run and want to rerun it.
+    # In this case, the lasted file will be removed in case it is not a complete file...
+)
 
 
 # ===================================       Set up everything          ======================================#
 # Create default folders and execution track file
 # ut.start_up()
-
 #
-# # # ===================================         All in one        ======================================#
-# # # Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
-# # # the output of one process is the input of next process...
-# # ut.download_assets()
-# # ut.merge()
-# # ut.clip()
-# # ut.band_algebra(output_type='clear prob')
-# # ut.band_algebra(output_type='NDVI')
-# # ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
-# #                    save_rgb=True, save_clip=False) # Bomas...
+#
+# # ===================================         All in one        ======================================#
+# # Download sr and udm2 --> merge --> clip --> calculate clear prob and/or ndvi --> bomas visualization
+# # the output of one process is the input of next process...
+# ut.download_assets()
+# ut.merge()
+# ut.clip()
+# ut.band_algebra(output_type='clear prob')
+# ut.band_algebra(output_type='NDVI')
+# ut.clip_clear_perc(shapefile_path=r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\shp\bomas\layers\POLYGON.shp', clear_perc_min=0.1,
+#                    save_rgb=True, save_clip=False) # Bomas...
 #
 #
 # # ===================================         Download       ======================================#
@@ -69,17 +62,17 @@ ut.remove_latest = False # Set as True only when you killed the previous run and
 # # Another easier way to do so is that you can change the work_dir and name of the folder for saving downloaded
 # # images on line 8 and line 10 in this script
 # # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-# output_dir = r'C:\Users\ChengY\PycharmProjects\PyPlanetScope_WD\raw'
+# output_dir = '/nnfs/Users/Yan/California_timeseries/Sierra_Nevada/aoi1'
 # ut.download_assets(output_dir=output_dir)
 #
 #
 # ===================================         Merge        ======================================#
 # Set input directory that includes all data to be merged
 # the default directory is [..\raw], which is the automatically created folder for saving all downloaded images
-input_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
-file_list = glob("{}\\*SR_clip.tif".format(input_dir)) # only for udm2
-# file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
-ut.merge(file_list=file_list)
+# input_dir = '/Users/maverickmiaow/Documents/GitHub/NSFC_CityPhenology'
+# file_list = glob("{}\\*SR_clip.tif".format(input_dir)) # only for udm2
+# # file_list = glob("{}\\*.tif".format(input_dir)) # for all tif
+# ut.merge(file_list=file_list)
 #
 #
 # # ===================================         Clip        ======================================#
