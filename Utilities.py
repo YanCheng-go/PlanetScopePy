@@ -572,13 +572,14 @@ class Utilities:
         temp_output_path = Path(self.work_dir) / 'TempFile.tif'
         gdal_calc_str = 'python {0} --calc "A+B+C+D+E+F+G" --co "COMPRESS=LZW" --format GTiff ' \
                         '--type Byte -A {1} --A_band 1 -B {2} --B_band 2 -C {3} --C_band 3 -D {4} --D_band 4 ' \
-                        '-E {5} --E_band 5 -F {6} --F_band 6 -G {7} --G_band 7 --outfile {8} --overwrite'
+                        '-E {5} --E_band 5 -F {6} --F_band 6 -G {7} --G_band 7 --NoDataValue 0.0 ' \
+                        '--outfile {8} --overwrite'
         gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, input_path, input_path, input_path,
                                                  input_path, input_path, input_path, temp_output_path)
         os.system(gdal_calc_process)
 
         gdal_calc_str = 'python {0} --calc "A*(B>0)" --co "COMPRESS=LZW" --format GTiff ' \
-                        '--type Byte --NoDataValue 0 -A {1} -B {2} --outfile {3} --allBands A --overwrite'
+                        '--type Byte -A {1} -B {2} --outfile {3} --allBands A --overwrite'
         gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, temp_output_path, output_path)
         os.system(gdal_calc_process)
         os.remove(temp_output_path)
@@ -642,7 +643,7 @@ class Utilities:
         # records_file.write('End time: {}\n\n'.format(time_str))
         # records_file.close()
 
-    def gdal_merge(self, input_path, output_path, data_type):
+    def gdal_merge(self, input_path, output_path, data_type, separate=False, compression=None):
         '''
         GDAL merge function. More info: https://gdal.org/programs/gdal_merge.html
         :param output_path:
@@ -651,7 +652,9 @@ class Utilities:
         :return:
         '''
 
-        gdal_merge_str = 'python {0} -a_nodata 0 -o {1} {2} -ot {3} -co COMPRESS=LZW'
+        gdal_merge_str = 'python {0} -o {1} {2} -ot {3}' if separate is False \
+            else 'python {0} -o {1} {2} -ot {3} -separate'
+        gdal_merge_str = ' '.join([gdal_merge_str, f'-co COMPRESS={compression}']) if compression is not None else gdal_merge_str
         gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, input_path, data_type)
         os.system(gdal_merge_process)
 
