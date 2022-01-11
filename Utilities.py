@@ -84,11 +84,12 @@ from requests.auth import HTTPBasicAuth
 import sys
 import warnings
 import netCDF4
+import shutil
 
 warnings.simplefilter('ignore')
 
 from pathlib import Path
-
+import string
 
 class Utilities:
     '''
@@ -167,8 +168,8 @@ class Utilities:
         # self.gdal_calc_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_calc.py')
         self.gdal_merge_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_merge.py'
         # self.gdal_merge_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_merge.py')
-        self.gdal_translate_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_translate.py'
-        # self.gdal_translate_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_translate.exe')
+        self.gdal_vrtmerge_path = str(Path(
+            '/home/yan/anaconda3/envs/PlanetScopePy_gdal333/lib/python3.7/site-packages/osgeo_utils/samples/gdal_vrtmerge.py'))
         self.work_dir = work_dir
         self.output_dirs = output_dirs
         self.satellite = satellite
@@ -559,19 +560,6 @@ class Utilities:
         # records_file.write('The outputs have been saved in this directory: {}\n\n'.format(output_dir))
         # records_file.write('End time: {}\n\n'.format(time_str))
         # records_file.close()
-
-    def gdal_translate(self, input_path, output_path):
-        '''
-        GDAL translate function
-        Remove band 8 and set backgound pixel as no data
-        :param input_path:
-        :param output_path:
-        :return:
-        '''
-
-        gdal_translate_str = '{0} -b 1 -b 2 -b 3 -b 4 -b 5 -b 6 -b 7 -a_nodata 0 -ot UInt16 -of GTiff {1} {2}'
-        gdal_translate_process = gdal_translate_str.format(self.gdal_translate_path, input_path, output_path)
-        os.system(gdal_translate_process)
 
     def gdal_udm2_setnull(self, input_path, output_path):
         '''
@@ -1059,6 +1047,226 @@ class Utilities:
         print('Done!')
         print('Check your output: ' + output_dir)
         nco.close()
+
+    # def gdal_vrtmerge(self, out_filename, data_type, input_file_list, separate=False):
+    #     # has bugs to be fixed
+    # Error -> -ot unrecognized
+    #     gdal_vrtmerge_str = 'python {0} -o {1} -ot {2} {3}' if separate is False else \
+    #         'python {0} -o {1} -separate -ot {2} {3}'
+    #     gdal_vrtmerge_process = gdal_vrtmerge_str.format(self.gdal_vrtmerge_path, out_filename, data_type,
+    #                                                      ' '.join(input_file_list))
+    #     os.system(gdal_vrtmerge_process)
+
+    # def gdal_vrtmerge(self, out_filename, data_type, input_file_list, separate=False):
+    #     # has bugs to be fixed
+    #     # ERROR 1: Writing through VRTSourcedRasterBand is not supported.
+    #     gdal_vrtmerge_str = 'python {0} -o {1} -ot {2} {3} -of VRT' if separate is False else \
+    #         'python {0} -o {1} -separate -ot {2} {3} -of VRT'
+    #     gdal_vrtmerge_process = gdal_vrtmerge_str.format(self.gdal_merge_path, out_filename, data_type,
+    #                                                      ' '.join(input_file_list))
+    #     os.system(gdal_vrtmerge_process)
+
+    @staticmethod
+    def gdal_progress_callback(complete, message, data):
+        if data:
+            data.update(int(complete * 100) - data.n)
+            if complete == 1:
+                data.close()
+        return 1
+
+    def complex_gdal_merge(self, input_path0, input_path1, output_path=None):
+        """
+        merge two images based on cloud probability in udm2
+        :param input_path0:a
+        :param input_path1:
+        :param output_path:
+        :return:
+        """
+
+        # mask individual image
+        masked_img0 = 'TempFile0.tif'
+        masked_img1 = 'TempFile1.tif'
+        cal_exp0 = '"Y*(logical_or(' \
+                   'logical_and(logical_and((A*B*C*D*E*F*G*H*I*J*K*L)!=1, (A+B+C+D+E+F+G+H+I+J+K+L)!=0), logical_and((E*K+Q*W)==0, K>=W)), ' \
+                   'logical_and((A*B*C*D*E*F*G*H*I*J*K*L)!=1, logical_and((E*K+Q*W)>0, (E*K)>=(Q*W)))' \
+                   '))"'
+        cal_exp1 = '"Z*(logical_or(' \
+                   'logical_and(logical_and((M*N*O*P*Q*R*S*T*U*V*W*X)!=1, (M+N+O+P+Q+R+S+T+U+V+W+X)!=0), logical_and((E*K+Q*W)==0, K<W)), ' \
+                   'logical_and((M*N*O*P*Q*R*S*T*U*V*W*X)!=1, logical_and((E*K+Q*W)>0, (E*K)<(Q*W)))' \
+                   '))"'
+        str0 = ' '.join(
+            ["-{} {} --{}_band {}".format(string.ascii_uppercase[i], '{2}', string.ascii_uppercase[i], i + 1) for i in
+             list(range(12))])
+        str1 = ' '.join(
+            ["-{} {} --{}_band {}".format(string.ascii_uppercase[i+12], '{3}', string.ascii_uppercase[i+12], i + 1) for i in
+             list(range(12))])
+        gdal_calc_str = 'python {0} --calc {1} -Y {2} -Z {3} --allBands {4} --outfile {5} --co "COMPRESS=LZW" ' \
+                        '--overwrite' + ' ' + str0 + ' ' + str1
+
+        for (current_img, cal_exp, masked_img) in list(zip(['Y', 'Z'], [cal_exp0, cal_exp1],
+                                                            [masked_img0, masked_img1])):
+            gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, cal_exp, input_path0, input_path1,
+                                                     current_img, masked_img)
+            os.system(gdal_calc_process)
+
+        # merge images
+        input_file_list = [masked_img0, masked_img1]
+        temp_filepath = 'TempFile.tif'
+        output_path = temp_filepath if output_path is None else output_path
+        gdal_merge_str = 'python {0} -n 0.0 -o {1} {2} -co COMPRESS=LZW'
+        gdal_merge_process = gdal_merge_str.format(self.gdal_merge_path, output_path, ' '.join(input_file_list))
+        os.system(gdal_merge_process)
+        list([os.remove(fp) for fp in [masked_img0, masked_img1]])
+        if output_path != temp_filepath and os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
+        return output_path
+
+    def iterative_merge(self, input_file_list, output_path):
+        """merge images acquired in the same day based on cloud probability in udm2"""
+
+        if len(input_file_list) == 2:
+            self.complex_gdal_merge(input_file_list[0], input_file_list[1], output_path)
+        else:
+            temp_filepath = self.complex_gdal_merge(input_file_list[0], input_file_list[1])
+            for idx, fp in enumerate(input_file_list[2:]):
+                if idx != len(input_file_list[2:]) - 1:
+                    self.complex_gdal_merge(temp_filepath, fp)
+                else:
+                    self.complex_gdal_merge(temp_filepath, fp, output_path)
+
+    def prep_pipline(self, input_dir, output_dir, start_date, end_date, crs=None,  jp2=True, clean=True,
+                     complex_merge=None):
+        """
+        Prepare input datasets for the deep learning models.
+        1. (prerequisite) download raw tiles, i.e., no clipping <- planetmosaic python project.
+        2. (prerequisite) merge tiles acquired the same day and on the same orbit.
+        3. (prerequisite) clip to the extent of AOI. <- clip function
+        4. stack sr and udm2 into one image (separate bands).
+        5. merge stacked images in the same day (regardless of orbits).
+        6. separate sr and udm2.
+        7. stack image time series into one file for sr and udm2 independently (in sequence of acquisition date), and save time stamps into a pickle file.
+        8. (optional) convert CRS and data format.
+        :param input_dir:
+        :param output_dir:
+        :param start_date:
+        :param end_date:
+        :param jp2:
+        :return:
+        """
+        # To be updated: use multiprocessing and on-the-fly processes
+
+        # create folders
+        sr_udm2_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2'
+        merge_orbit_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/merge_combine_orbits'
+        merge_orbit_sep_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/merge_orbits_sr_udm2'
+        folder_list = [output_dir, sr_udm2_dir, merge_orbit_dir, merge_orbit_sep_dir]
+        for folder_path in folder_list:
+            if not os.path.exists(folder_path):
+                os.mkdir(folder_path)
+
+        # main
+        date_orbit_list = [(Path(fp).stem.split('_')[0], Path(fp).stem.split('_')[1])
+                           for fp in sorted(glob(os.path.join(input_dir, '*AnalyticMS_SR*.tif')))
+                           if (Path(fp).stem.split('_')[0] >= start_date) and (Path(fp).stem.split('_')[0] <= end_date)]
+        date0 = None
+        orbit_list = []
+        date_list = []
+        for idx, (date, orbit) in enumerate(date_orbit_list[:]):
+            # stack sr and udm2 with the same date and orbit into one image.
+            self.gdal_merge(input_path=' '.join(
+                [glob(os.path.join(input_dir, f'{date}_{orbit}*AnalyticMS_SR*.tif'))[0],
+                 glob(os.path.join(input_dir, f'{date}_{orbit}*udm2*.tif'))[0]]),
+                output_path=os.path.join(sr_udm2_dir, f"{date}_{orbit}.tif"), data_type='UInt16',
+                separate=True, compression='LZW')
+
+            if idx == len(date_orbit_list):
+                date0 = date
+                date += 1
+
+            if (date0 is not None) and (not date0 == date):
+                # merge images in the same day regardless of orbits.
+                input_file_list = [os.path.join(sr_udm2_dir, f'{date0}_{orbit}.tif') for orbit in orbit_list]
+                if complex_merge is True and len(input_file_list) >= 2:
+                    self.iterative_merge(input_file_list=input_file_list,
+                                         output_path=os.path.join(merge_orbit_dir, f'{date0}.tif'))
+                else:
+                    self.gdal_merge(
+                        input_path=' '.join(input_file_list),
+                        output_path=os.path.join(merge_orbit_dir, f'{date0}.tif'), data_type='UInt16', separate=False,
+                        compression='LZW')
+                orbit_list = []
+                date_list.append(date0)
+                # split sr and udm2
+                translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine("-b 1 -b 2 -b 3 -b 4 -of Gtiff "
+                                                                               "-co COMPRESS=LZW -ot UInt16"))
+                gdal.Translate(os.path.join(merge_orbit_sep_dir, f'{date0}_AnalyticMS_SR.tif'),
+                               os.path.join(merge_orbit_dir, f'{date0}.tif'), options=translateoptions)
+                translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine("-b 5 -b 6 -b 7 -b 8 -b 9 -b 10 -b 11 "
+                                                                               "-b 12 -of Gtiff -co COMPRESS=LZW "
+                                                                               "-ot Byte"))
+                gdal.Translate(os.path.join(merge_orbit_sep_dir, f'{date0}_udm2.tif'),
+                               os.path.join(merge_orbit_dir, f'{date0}.tif'), options=translateoptions)
+                # stack all images into one file for both sr and udm2
+                if len(date_list) == 1:
+                    list([self.gdal_merge(
+                        input_path=os.path.join(merge_orbit_sep_dir, f'{date_list[0]}_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+                        output_path=os.path.join(output_dir, f'stack0_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+                        data_type=self.asset_attrs(asset_type)['data type'],
+                        separate=True, compression='LZW') for asset_type in ['analytic_sr', 'udm2']])
+                elif len(date_list) > 1:
+                    list([self.gdal_merge(
+                        input_path=' '.join([os.path.join(output_dir, f'stack0_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+                                             os.path.join(merge_orbit_sep_dir, f'{date_list[-1]}_{self.asset_attrs(asset_type)["suffix"]}.tif')]),
+                        output_path=os.path.join(output_dir, f'stack_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+                        data_type=self.asset_attrs(asset_type)['data type'],
+                        separate=True, compression='LZW') for asset_type in ['analytic_sr', 'udm2']])
+                    # delete stack0.tif
+                    list([os.remove(os.path.join(output_dir, f'stack0_{self.asset_attrs(asset_type)["suffix"]}.tif'))
+                          for asset_type in ['analytic_sr', 'udm2']])
+                    # rename stack.tif to stack0.tif
+                    list([os.rename(os.path.join(output_dir, f'stack_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+                                    os.path.join(output_dir, f'stack0_{self.asset_attrs(asset_type)["suffix"]}.tif'))
+                          for asset_type in ['analytic_sr', 'udm2']])
+
+            date0 = date
+            orbit_list.append(orbit)
+
+        # delete temporary datasets and folders
+        if clean is True:
+            list([shutil.rmtree(i) for i in [sr_udm2_dir, merge_orbit_dir, merge_orbit_sep_dir]])
+        # rename
+        list([os.rename(
+            os.path.join(output_dir, f'stack0_{self.asset_attrs(asset_type)["suffix"]}.tif'),
+            os.path.join(output_dir, f'PS_{self.asset_attrs(asset_type)["suffix"]}_stack_{start_date}_{end_date}.tif')
+        ) for asset_type in ['analytic_sr', 'udm2']])
+
+        # change coordinate system
+        if crs is not None:
+            # to be completed
+            pass
+            # ref_img = None
+            # ds = gdal.Open(ref_img)
+            # crs_original = ds.GetProjection()
+            # options = None
+            # gdal.Warp()
+
+        # convert to jp2 format
+        if jp2 is True:
+            options = dict(
+                format="JP2OpenJPEG",
+                creationOptions=["QUALITY=80"],
+                callback=self.gdal_progress_callback,
+                callback_data=tqdm(total=100, position=0, leave=True, desc="")
+            )
+            list([gdal.Translate(
+                os.path.join(output_dir,
+                             f'PS_{self.asset_attrs(asset_type)["suffix"]}_stack_{start_date}_{end_date}.jp2'),
+                os.path.join(output_dir,
+                             f'PS_{self.asset_attrs(asset_type)["suffix"]}_stack_{start_date}_{end_date}.tif'),
+                **options) for asset_type in ['analytic_sr', 'udm2']])
+            list([os.remove(os.path.join(
+                output_dir, f'PS_{self.asset_attrs(asset_type)["suffix"]}_stack_{start_date}_{end_date}.tif'))
+                  for asset_type in ['analytic_sr', 'udm2']])
 
     def plot_time_series(self):
         '''

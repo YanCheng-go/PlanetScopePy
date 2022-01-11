@@ -115,4 +115,32 @@ ut = utils.Utilities(
 # print(out)
 
 
+# # ===================================         Data preparation pipline       ======================================#
+# Prepare input datasets for the deep learning models.
+# 1. (prerequisite) download raw tiles, i.e., no clipping <- planetmosaic python project.
+# 2. (prerequisite) merge tiles acquired the same day and on the same orbit.
+# 3. (prerequisite) clip to the extent of AOI. <- clip function
+# 4. stack sr and udm2 into one image (separate bands).
+# 5. merge stacked images in the same day (regardless of orbits).
+# 6. separate sr and udm2.
+# 7. stack image time series into one file for sr and udm2 independently (in sequence of acquisition date), and save time stamps into a pickle file.
+# 8. (optional) convert CRS and data format.
+
+# ut.prep_pipline(input_dir='/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/clip_2021',
+#                 output_dir='/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_gdal',
+#                 start_date='20190101',
+#                 end_date='20190131',
+#                 crs=None,
+#                 jp2=True,
+#                 clean=False,
+#                 complex_merge=True)
+
+# # Test iterative_merge()
+# input_file_list = ['/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_0f21.tif',
+#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1001.tif',
+#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1003.tif',
+#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1029.tif']
+# output_path = 'complex_merge_.tif'
+# ut.iterative_merge(input_file_list, output_path)
+
 
