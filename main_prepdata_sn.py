@@ -80,7 +80,8 @@ ut = utils.Utilities(
 #     file_list_test.extend(fp_list)
 # aoi_test = '/home/yan/Downloads/POLYGON.shp'
 #
-# ut.clip(file_list=file_list_test, aoi_shp=aoi_test, suffix='_clip_test')
+# ut.clip(file_list=file_list_test, aoi_shp=aoi_test, suffix='_clip_test', discard_empty_scene=True,
+#         all_scenes='/mnt/raid5/California_timeseries/Sierra_Nevada/aoi1/sn_aoi1_20190101_20200101_1000_0000.gpkg')
 
 
 # # ===================================         Stack into a netCDF file       ======================================#

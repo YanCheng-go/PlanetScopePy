@@ -120,6 +120,7 @@ class Utilities:
     default_end_date = '2020-01-01'
     default_cloud_cover = 1
     default_aoi_shp = '/mnt/raid5/California_timeseries/aois/sn_aoi1.shp'
+    default_all_scenes = '/mnt/raid5/California_timeseries/Sierra_Nevada/aoi1/sn_aoi1_20190101_20200101_1000_0000.gpkg'
     # Color composition for visualization
     default_rgb_composition = {'red': 4, 'green': 3, 'blue': 2}  # False color composition for PlanetScope images
     default_dpi = 90
@@ -132,7 +133,7 @@ class Utilities:
                  process_level=default_process_level, asset_types=default_asset_types, start_date=default_start_date,
                  end_date=default_end_date, cloud_cover=default_cloud_cover, aoi_shp=default_aoi_shp,
                  rgb_composition=default_rgb_composition, dpi=default_dpi, percentile=default_percentile,
-                 remove_latest=default_remove_latest):
+                 remove_latest=default_remove_latest, all_scenes=default_all_scenes):
         '''
 
         :param gdal_osgeo_dir: string
@@ -192,6 +193,8 @@ class Utilities:
         self.remove_latest = remove_latest
         self.records_path = None  # File path of execution track document
         self.id_list_download = None  # a list of item id which will be downloaded
+
+        self.all_scenes = all_scenes
 
     def shp_to_json(self):
         '''
@@ -775,7 +778,21 @@ class Utilities:
         raster = None
         vector_dataset.Destroy()
 
-    def clip(self, file_list=None, aoi_shp=None, suffix=''):
+    @staticmethod
+    def get_aoi_scenes(all_scenes, aoi):
+        """
+        Retrieve scenes intersect with an aoi.
+        :param all_scenes:
+        :param aoi:
+        :return: GeoDataFrame,
+        """
+
+        all_scenes_gdf = gpd.GeoDataFrame.from_file(all_scenes)
+        aoi_gdf = gpd.GeoDataFrame.from_file(aoi)
+        out = gpd.overlay(all_scenes_gdf, aoi_gdf, how='intersection')
+        return out
+
+    def clip(self, file_list=None, aoi_shp=None, suffix='', discard_empty_scene=None, all_scenes=None):
         '''
         Clip imagery to the extent of AOI
         :param file_list:
@@ -807,6 +824,12 @@ class Utilities:
                 os.remove(latest_file)
                 file_list_exist.remove(latest_file)
             file_list = [file for file in file_list if file not in file_list_exist]
+
+        if discard_empty_scene is True:
+            all_scenes = self.all_scenes if all_scenes is None else all_scenes
+            overlayed_gdf = self.get_aoi_scenes(all_scenes=all_scenes, aoi=aoi_shp)
+            date_orbit_list = overlayed_gdf['id'].apply(lambda x: x.split('_')).apply(lambda x: '_'.join([x[0], x[-1]])).tolist()
+            file_list = [fp for date_orbit in date_orbit_list for fp in file_list if date_orbit in fp]
 
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Clipping images'):
             output_name = str(Path(input_path).stem) + f'{suffix}' + str(Path(input_path).suffix)
