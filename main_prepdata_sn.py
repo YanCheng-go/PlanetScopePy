@@ -54,12 +54,18 @@ ut = utils.Utilities(
 #                                                       '20190623_171851_0f46', '20190721_182401_0f34',
 #                                                       '20190828_182009_0f22', '20191010_170118_100d',
 #                                                       '20191011_170222_0f46', '20191107_184348_41_1058',
-#                                                       '20191111_182203_1034', '20191114_182204_1025']] # udm2 + SR
+#                                                       '20191111_182203_1034', '20191114_182204_1025']] # SR
 #
 # ut.merge(input_dir=input_dir, file_list=file_list, asset_type_list=['analytic_sr'])
 
 # # Merge udm2
-# file_list = [i for i in glob('/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/raw/*udm*.tif')]
+# input_dir = '/mnt/raid5/California_timeseries/Sierra_Nvada/aoi1'
+# file_list = [i for i in glob('/mnt/raid5/California_timeseries/Sierra_Nevada/aoi1/*/PSScene4Band/*udm2*.tif')
+#              if Path(i).stem.split('_3B_')[0] not in ['20190613_171923_1048', '20190621_172106_104a',
+#                                                       '20190623_171851_0f46', '20190721_182401_0f34',
+#                                                       '20190828_182009_0f22', '20191010_170118_100d',
+#                                                       '20191011_170222_0f46', '20191107_184348_41_1058',
+#                                                       '20191111_182203_1034', '20191114_182204_1025']]
 # ut.merge(file_list=file_list, asset_type_list=['udm2'])
 
 
