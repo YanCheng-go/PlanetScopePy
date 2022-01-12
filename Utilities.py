@@ -1257,6 +1257,11 @@ class Utilities:
             date0 = date
             orbit_list.append(orbit)
 
+        # export dates as a pickle file
+        with open(os.path.join(output_dir, f'PS_stack_dates_{start_date}_{end_date}.txt'), 'w') as txt:
+            for date in date_list:
+                txt.write(date + ",")
+
         # delete temporary datasets and folders
         if clean is True:
             list([shutil.rmtree(i) for i in [sr_udm2_dir, merge_orbit_dir, merge_orbit_sep_dir]])
