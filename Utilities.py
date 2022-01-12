@@ -564,7 +564,7 @@ class Utilities:
         # records_file.write('End time: {}\n\n'.format(time_str))
         # records_file.close()
 
-    def gdal_udm2_setnull(self, input_path, output_path):
+    def gdal_udm2_setnull(self, input_path, output_path, compression='LZW'):
         '''
         Set the value of background pixels as no data
         :param input_path:
@@ -581,13 +581,15 @@ class Utilities:
                                                  input_path, input_path, input_path, temp_output_path)
         os.system(gdal_calc_process)
 
-        gdal_calc_str = 'python {0} --calc "A*(B>0)" --co "COMPRESS=LZW" --format GTiff ' \
+        gdal_calc_str = 'python {0} --calc "A*(B>0)" --format GTiff ' \
                         '--type Byte -A {1} -B {2} --outfile {3} --allBands A --overwrite'
+        gdal_calc_str = gdal_calc_str + f' --co "COMPRESS={compression}"' if compression is not None else gdal_calc_str
+
         gdal_calc_process = gdal_calc_str.format(self.gdal_calc_path, input_path, temp_output_path, output_path)
         os.system(gdal_calc_process)
         os.remove(temp_output_path)
 
-    def udm2_setnull(self, file_list=None):
+    def udm2_setnull(self, file_list=None, compression='LZW'):
         '''
         Set the value of background pixels as no data
         :param file_list:
@@ -635,7 +637,7 @@ class Utilities:
         for input_path in tqdm(file_list, total=len(file_list), unit="item", desc='Processing udm2 data'):
             output_path = str(Path(output_dir) / str(Path(input_path).stem.split('.')[0] + '_setnull.tif'))
             try:
-                self.gdal_udm2_setnull(input_path, output_path)
+                self.gdal_udm2_setnull(input_path=input_path, output_path=output_path, compression=compression)
             except:
                 pass
 
@@ -718,7 +720,8 @@ class Utilities:
                     output_path = str(Path(output_dir) / str(date + '_' + satellite_id + '_{}.tif'
                                                              .format(self.asset_attrs(asset_type)['suffix'])))
                     input_path = ' '.join(str(i) for i in file_list_new if satellite_id in i)
-                    self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'])
+                    self.gdal_merge(input_path, output_path, self.asset_attrs(asset_type)['data type'],
+                                    separate=False, compression=None)
 
         time_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         print('Finish merging images :)')
@@ -727,7 +730,7 @@ class Utilities:
         # records_file.write('End time: {}\n\n'.format(time_str))
         # records_file.close()
 
-    def gdal_clip(self, input_path, pixel_res, shapefile_path, output_path, data_type):
+    def gdal_clip(self, input_path, pixel_res, shapefile_path, output_path, data_type, compression=None):
         '''
         GDAL clip function
         :param input_path:
@@ -767,7 +770,10 @@ class Utilities:
                             options=['COMPRESS=LZW'])
 
         # Compression
-        translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine("-of Gtiff -co COMPRESS=LZW"))
+        if compression is not None:
+            translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine(f"-of Gtiff -co COMPRESS={compression}"))
+        else:
+            translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine("-of Gtiff"))
         gdal.Translate(output_path, 'temp.vrt', options=translateoptions)
         # gdal_translate_str = 'python {0} -co COMPRESS=LZW temp.vrt {1}'
         # gdal_translate_process = gdal_translate_str.format(self.gdal_translate_path, output_path)
