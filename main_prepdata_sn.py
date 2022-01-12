@@ -12,6 +12,20 @@ import Utilities as utils
 from glob import glob
 from pathlib import Path
 
+# Pipeline
+# 1. initial setup.
+# 2. simple merge, i.e., same orbit and same acquisition date.
+#    a. merge sr.
+#    b. set null for udm2.
+#    c. merge udm2.
+# 3. clip to the extent of AOIs
+# 4. stack sr and udm2 into one file (separate bands).
+# 5. merge stacked images in the same day (regardless of orbits).
+# 6. separate sr and udm2 bands into two files.
+# 7. stack image time series into one file for sr and udm2 independently (in sequence of acquisition date), and store time stamps into a pickle file.
+# 8. (optional) convert CRS and data format.
+
+
 # ===================================          Settings        ======================================#
 # You can also change the variables namely default_XXXXXX in the Utilities.py file
 # In this case, you do not need to set these variables when you call functions in Utilities.py
@@ -38,7 +52,7 @@ ut = utils.Utilities(
 )
 
 
-# ===================================       Set up everything          ======================================#
+# ===================================       Initial set up          ======================================#
 # Create default folders and execution track file
 # ut.start_up()
 
@@ -90,7 +104,7 @@ ut = utils.Utilities(
 #         all_scenes='/mnt/raid5/California_timeseries/Sierra_Nevada/aoi1/sn_aoi1_20190101_20200101_1000_0000.gpkg')
 
 
-# # ===================================         Stack into a netCDF file       ======================================#
+# # =================================         Stack into a netCDF file (RSE)      ====================================#
 
 # input_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/clip'
 # output_dir = '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack'
@@ -139,15 +153,5 @@ ut = utils.Utilities(
 #                 end_date='20190131',
 #                 crs=None,
 #                 jp2=True,
-#                 clean=False,
+#                 clean=True,
 #                 complex_merge=True)
-
-# # Test iterative_merge()
-# input_file_list = ['/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_0f21.tif',
-#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1001.tif',
-#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1003.tif',
-#                    '/mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/stack_sr_udm2/20190102_1029.tif']
-# output_path = 'complex_merge_.tif'
-# ut.iterative_merge(input_file_list, output_path)
-
-

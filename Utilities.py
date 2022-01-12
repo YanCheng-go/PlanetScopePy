@@ -9,6 +9,12 @@ Contributors: Dr. Anton Vrieling
 '''
 Major updates
 ===============================================================
+10/01/2022
+- fix bugs
+- udm2_setnull() -> a_nodata 
+- gdal_merge() -> compression and -a_nodata
+- new function -> stack_to_nc() and prep_pipline() for data preparation for deep learning models
+
 13/02/2020
 - remove retrieve_exist_files()
 - change the code for checking existing files in clip()
@@ -165,9 +171,9 @@ class Utilities:
         # sys.path.append(self.gdal_scripts_path)
         # os.environ["GDAL_DATA"] = self.gdal_data_path
         # os.environ['PROJ_LIB'] = self.gdal_proj_path
-        self.gdal_calc_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_calc.py'
+        self.gdal_calc_path = str(Path('/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_calc.py'))
         # self.gdal_calc_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_calc.py')
-        self.gdal_merge_path = '/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_merge.py'
+        self.gdal_merge_path = str(Path('/home/yan/anaconda3/envs/PlanetScopePy_new/bin/gdal_merge.py'))
         # self.gdal_merge_path = str(Path(gdal_osgeo_dir) / 'scripts/gdal_merge.py')
         self.gdal_vrtmerge_path = str(Path(
             '/home/yan/anaconda3/envs/PlanetScopePy_gdal333/lib/python3.7/site-packages/osgeo_utils/samples/gdal_vrtmerge.py'))
@@ -654,8 +660,15 @@ class Utilities:
         :param output_path:
         :param input_path:
         :param data_type:
+        :param separate:
+        :param compression:
         :return:
         '''
+
+        # Errors when apply LZW compression!!!
+        # ERROR 1: TIFFReadEncodedStrip() failed.
+        # ERROR 1: /mnt/raid5/Planet/pre_processed/Sierra_Nevada_AOI1/raw/20190509_172738_0f46_3B_udm2_clip_setnull.tif,
+        # band 8: IReadBlock failed at X offset 0, Y offset 1339: TIFFReadEncodedStrip() failed.
 
         gdal_merge_str = 'python {0} -o {1} {2} -ot {3}' if separate is False \
             else 'python {0} -o {1} {2} -ot {3} -separate'
@@ -801,6 +814,9 @@ class Utilities:
     def clip(self, file_list=None, aoi_shp=None, suffix='', discard_empty_scene=None, all_scenes=None):
         '''
         Clip imagery to the extent of AOI
+        :param discard_empty_scene:
+        :param suffix:
+        :param aoi_shp:
         :param file_list:
         :return:
         '''
@@ -967,7 +983,6 @@ class Utilities:
         date_orbit_list = sorted(list(
             set(['_'.join([str(Path(fp).stem.split('_')[0]), str(Path(fp).stem.split('_')[1])]) for fp in fp_list_all])))
 
-
         ds = gdal.Open(ref_image)  # reference -> could be any image from the candidate images to be stacked into a netCDF file
         # get the number of bands
         n_band = int(ds.RasterCount)
@@ -983,8 +998,8 @@ class Utilities:
         b = ds.GetGeoTransform()  # bbox, interval
         prj = ds.GetProjection()
         # calculate coordinates
-        x = np.arange(nx)*b[1]+b[0] if proj is True else range(nx)
-        y = np.arange(ny)*b[5]+b[3] if proj is True else range(ny)
+        x = np.arange(nx) * b[1] + b[0] if proj is True else range(nx)
+        y = np.arange(ny) * b[5] + b[3] if proj is True else range(ny)
         ds = None
 
         # the date of the first image
@@ -1027,14 +1042,15 @@ class Utilities:
                                      fill_value=fill_value, least_significant_digit=least_significant_digit)
             out.standard_name = name
             return out
+
         # surface reflectance
-        sro_list = list([create_variables(f'B{i+1}', f'B{i+1}', 'u2') for i in range(n_band)])
+        sro_list = list([create_variables(f'B{i + 1}', f'B{i + 1}', 'u2') for i in range(n_band)])
         # quality bands
         if udm2 is True:
             ds = gdal.Open(ref_udm2)
             n_qa = int(ds.RasterCount)
             ds = None
-            qao_list = list([create_variables(f'B{n_band+i+1}', f'UDM2_{i+1}', 'u1') for i in range(n_qa)])
+            qao_list = list([create_variables(f'B{n_band + i + 1}', f'UDM2_{i + 1}', 'u1') for i in range(n_qa)])
         # metadata
         mdo = create_variables('orbit', 'orbit', str, dims=('time'), chunksizes=[chunk_time])
 
